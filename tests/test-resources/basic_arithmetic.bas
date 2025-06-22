@@ -1,0 +1,9 @@
+PRINT 1 + 2
+PRINT 9 - 4
+PRINT 2 * 5
+PRINT 10 / 2
+PRINT 1 + 2 * 3
+PRINT (1 + 2) * 3
+PRINT 4 - 2 / 2
+PRINT 2 * 4 + 5
+PRINT 5 + 3 * 2 - 4

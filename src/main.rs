@@ -2,24 +2,29 @@
 //
 // SPDX-License-Identifier: MIT
 
-use basically::parser::{BasicParser, Rule};
 use basically::ast::Program;
 use basically::ir;
+use basically::parser::{BasicParser, Rule};
 use basically::vm::VM;
 
-use pest::iterators::Pair;
 use pest::Parser;
+use pest::iterators::Pair;
 
 fn print_pair(pair: &Pair<Rule>, indent: usize) {
     let indent_str = " ".repeat(indent);
-    println!("{}Rule::{:?} -> {:?}", indent_str, pair.as_rule(), pair.as_str());
+    println!(
+        "{}Rule::{:?} -> {:?}",
+        indent_str,
+        pair.as_rule(),
+        pair.as_str()
+    );
     for inner_pair in pair.clone().into_inner() {
         print_pair(&inner_pair, indent + 2);
     }
 }
 
 fn main() {
-    let input = "PRINT 42";
+    let input = "PRINT 1 + 2 * 3";
     println!("=== PROGRAM ====");
     println!("{}", input);
 
@@ -32,7 +37,8 @@ fn main() {
 
     println!("\n=== AST ===");
 
-    let program = Program::try_from(pairs.next().expect("Empty program")).expect("Failed to get program");
+    let program =
+        Program::try_from(pairs.next().expect("Empty program")).expect("Failed to get program");
     println!("{:?}", program);
 
     println!("\n=== IR ===");
@@ -41,6 +47,6 @@ fn main() {
     println!("{:?}", ir_program);
 
     println!("\n=== Executing ===");
-    let mut vm = VM::new(ir_program);
+    let mut vm = VM::new(ir_program, Box::new(|output| println!("{}", output)));
     vm.run().expect("Failed to run program");
 }

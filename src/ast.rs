@@ -75,6 +75,11 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
 #[derive(Debug, Clone)]
 pub enum Expression {
     Integer(i16), // QBasic integer types were 16-bit signed integers
+    BinaryOp {
+        left: Box<Expression>,
+        op: BinaryOperator,
+        right: Box<Expression>,
+    },
 }
 
 impl TryFrom<Pair<'_, Rule>> for Expression {
@@ -83,11 +88,58 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
     fn try_from(expr: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         match expr.as_rule() {
             Rule::expression => {
-                Ok(Expression::try_from(expr.into_inner().next().ok_or(
-                    AstError::InvalidExpression("Empty expression".to_string()),
-                )?)?)
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+                
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty expression".to_string()));
+                }
+                
+                // Start with the first term
+                let mut result = Expression::try_from(elements.remove(0))?;
+                
+                // Process remaining operator-term pairs
+                while elements.len() >= 2 {
+                    let op = BinaryOperator::try_from(elements.remove(0))?;
+                    let right = Expression::try_from(elements.remove(0))?;
+                    
+                    result = Expression::BinaryOp {
+                        left: Box::new(result),
+                        op,
+                        right: Box::new(right),
+                    };
+                }
+                
+                Ok(result)
             }
-            Rule::integer => Ok(Expression::Integer(expr.as_str().parse::<i16>().map_err(
+            Rule::term => {
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+                
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty term".to_string()));
+                }
+                
+                // Start with the first factor
+                let mut result = Expression::try_from(elements.remove(0))?;
+                
+                // Process remaining operator-factor pairs
+                while elements.len() >= 2 {
+                    let op = BinaryOperator::try_from(elements.remove(0))?;
+                    let right = Expression::try_from(elements.remove(0))?;
+                    
+                    result = Expression::BinaryOp {
+                        left: Box::new(result),
+                        op,
+                        right: Box::new(right),
+                    };
+                }
+                
+                Ok(result)
+            },
+            Rule::factor => {
+                let mut inner = expr.clone().into_inner();
+                Ok(Expression::try_from(inner.next().unwrap())?)
+            },            
+            Rule::number => Ok(Expression::Integer(expr.as_str().parse::<i16>().map_err(
                 |e| AstError::InvalidExpression(format!("Invalid integer: {e}")),
             )?)),
             _ => Err(AstError::InvalidExpression(format!(
@@ -98,20 +150,27 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::parser::BasicParser;
-    use pest::Parser;
+#[derive(Debug, Clone)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
 
-    use super::*;
+impl TryFrom<Pair<'_, Rule>> for BinaryOperator {
+    type Error = AstError;
 
-    #[test]
-    fn test_parse_print_42_statement() {
-        let input = "PRINT 42";
-
-        let mut pairs = BasicParser::parse(Rule::program, input).expect("Failed to parse input");
-        let program =
-            Program::try_from(pairs.next().expect("Empty program")).expect("Failed to get program");
-        println!("{:?}", program);
+    fn try_from(op: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match op.as_rule() {
+            Rule::addition_operator => Ok(BinaryOperator::Add),
+            Rule::subtraction_operator => Ok(BinaryOperator::Subtract),
+            Rule::multiplication_operator => Ok(BinaryOperator::Multiply),
+            Rule::division_operator => Ok(BinaryOperator::Divide),
+            _ => Err(AstError::InvalidExpression(format!(
+                "Invalid binary operator: {:?}",
+                op
+            ))),
+        }
     }
 }

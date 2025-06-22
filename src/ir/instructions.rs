@@ -5,6 +5,12 @@
 #[derive(Debug, Clone)]
 pub enum Instruction {
     LoadConst(i16),
+
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+
     Print,
     Halt,
 }

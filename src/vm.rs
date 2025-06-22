@@ -18,15 +18,18 @@ pub enum VMError {
 pub struct VM {
     stack: Vec<i16>,
     pc: usize,
-    instructions: Vec<ir::Instruction>
+    instructions: Vec<ir::Instruction>,
+
+    output_handler: Box<dyn FnMut(String)>,
 }
 
 impl VM {
-    pub fn new(program: ir::Program) -> Self {
+    pub fn new(program: ir::Program, output_handler: Box<dyn FnMut(String)>) -> Self {
         Self {
             stack: vec![],
             pc: 0,
             instructions: program.instructions,
+            output_handler,
         }
     }
 
@@ -43,10 +46,30 @@ impl VM {
                 },
                 Instruction::Print => {
                     if let Some(value) = self.stack.pop() {
-                        println!("{}", value);
+                        (self.output_handler)(value.to_string());
                     } else {
                         return Err(VMError::StackUnderflow);
                     }
+                },
+                Instruction::Add => {
+                    let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    self.stack.push(a + b);
+                },
+                Instruction::Subtract => {
+                    let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    self.stack.push(a - b);
+                },
+                Instruction::Multiply => {
+                    let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    self.stack.push(a * b);
+                },
+                Instruction::Divide => {
+                    let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    self.stack.push(a / b);
                 },
                 Instruction::Halt => {
                     break;

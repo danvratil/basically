@@ -1,12 +1,33 @@
-WHITESPACE = _{ " " }
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ "'" | "REM" ~ (!"\n" ~ ANY)* }
 
-program = { SOI ~ statement* ~ EOI }
+program = { SOI ~ (statement ~ statement_separator)* ~ EOI }
 
 statement = { print_statement }
+statement_separator = _{ "\n" | ":" | EOI }
 
 print_statement = { "PRINT" ~ expression }
 
-expression = { integer }
+expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
+term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
+factor = { number | ("(" ~ expression ~ ")") }
 
-integer = { digit+ }
-digit = { "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" }
+number = @{ ASCII_DIGIT+ }
+
+// Date type suffixes
+single_precision_suffix = { "!" }
+double_precision_suffix = { "#" }
+string_suffix = { "$" }
+integer_suffix = { "%" }
+long_integer_suffix = { "&" }
+
+// Mathemtical operators
+multiplication_operator = { "*" }
+subtraction_operator = { "-" }
+division_operator = { "/" }
+addition_operator = { "+" }
+exponentiation_operator = { "^" }
+
+// Logic operators
+assignment_operator = { "=" }
+relational_operators = { "<" | "=" | ">" }

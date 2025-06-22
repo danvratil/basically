@@ -6,6 +6,7 @@ use crate::ast;
 use crate::ir;
 
 use std::iter;
+use itertools::chain;
 
 pub fn compile(program: ast::Program) -> ir::Program {
     ir::Program {
@@ -21,9 +22,11 @@ pub fn compile(program: ast::Program) -> ir::Program {
 
 fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
     match statement {
-        ast::Statement::Print(expr) => compile_expression(expr)
-            .into_iter()
-            .chain(iter::once(ir::Instruction::Print))
+        ast::Statement::Print(expr) => 
+            chain!(
+                compile_expression(expr),
+                iter::once(ir::Instruction::Print)
+            )
             .collect(),
     }
 }
@@ -32,6 +35,19 @@ fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
     match expr {
         ast::Expression::Integer(value) => {
             vec![ir::Instruction::LoadConst(value)]
+        },
+        ast::Expression::BinaryOp { left, op, right } => {
+            chain!(
+                compile_expression(*left),
+                compile_expression(*right),
+                iter::once(match op {
+                    ast::BinaryOperator::Add => ir::Instruction::Add,
+                    ast::BinaryOperator::Subtract => ir::Instruction::Subtract,
+                    ast::BinaryOperator::Multiply => ir::Instruction::Multiply,
+                    ast::BinaryOperator::Divide => ir::Instruction::Divide,
+                })
+            )
+            .collect()
         }
     }
 }
