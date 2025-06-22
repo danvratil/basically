@@ -1,0 +1,9 @@
+[package]
+name = "basically"
+version = "0.1.0"
+edition = "2024"
+authors = [
+    "Daniel Vrátil <me@dvratil.cz>"
+]
+
+[dependencies]
