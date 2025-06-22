@@ -1,0 +1,10 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: BASIC-ally
+Upstream-Contact: Daniel Vrátil <me@dvratil.cz>
+Source: https://github.com/danvratil/basically
+
+# Sample paragraph, commented out:
+#
+# Files: src/*
+# Copyright: $YEAR $NAME <$CONTACT>
+# License: ...

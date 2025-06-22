@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Daniel Vrátil <me@dvratil.cz>
+//
+// SPDX-License-Identifier: MIT
+
 #[derive(Debug, Clone)]
 pub enum Instruction {
     LoadConst(i16),
