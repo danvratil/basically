@@ -7,3 +7,6 @@ authors = [
 ]
 
 [dependencies]
+pest = "2.8"
+pest_derive = "2.8.1"
+thiserror = "2.0.12"
