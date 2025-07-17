@@ -4,19 +4,16 @@
 
 use std::collections::HashMap;
 
+mod arrays;
+
 use crate::{
     InputHandler, OutputHandler,
-    ast::{Variable, VariableType},
+    ast,
     ir,
+    vm::arrays::{ArrayStorage, ArrayStorageMode},
 };
-use enum_map::{EnumMap, enum_map};
+use enum_map::{enum_map, Enum, EnumMap};
 use thiserror::Error;
-
-#[derive(Debug, Clone)]
-pub enum ArrayStorageMode {
-    Static,
-    Dynamic,
-}
 
 #[derive(Error, Debug)]
 pub enum VMError {
@@ -37,6 +34,12 @@ pub enum VMError {
 
     #[error("Overflow")]
     Overflow,
+
+    #[error("Wrong number of dimensions")]
+    WrongNumberOfDimensions,
+
+    #[error("Subscript out of range")]
+    SubscriptOutOfRange,
 }
 
 pub struct VM {
@@ -49,7 +52,28 @@ pub struct VM {
     output_handler: OutputHandler,
     input_handler: InputHandler,
 
-    array_storage_mode: Option<ArrayStorageMode>,
+    array_storage: ArrayStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Enum)]
+enum VariableType {
+    String,
+    SinglePrecision,
+    DoublePrecision,
+    Integer,
+    Long,
+}
+
+impl From<&ast::VariableType> for VariableType {
+    fn from(value: &ast::VariableType) -> Self {
+        match value {
+            ast::VariableType::String => VariableType::String,
+            ast::VariableType::SinglePrecision => VariableType::SinglePrecision,
+            ast::VariableType::DoublePrecision => VariableType::DoublePrecision,
+            ast::VariableType::Integer => VariableType::Integer,
+            ast::VariableType::Long => VariableType::Long,
+        }
+    }
 }
 
 impl VM {
@@ -71,12 +95,12 @@ impl VM {
             },
             output_handler,
             input_handler,
-            array_storage_mode: None,
+            array_storage: ArrayStorage::new(),
         }
     }
 
-    fn load_variable(&self, variable: &Variable) -> Option<&ir::Value> {
-        self.variables_by_type[variable.r#type].get(&variable.name)
+    fn load_variable(&self, variable: &ast::Variable) -> Option<&ir::Value> {
+        self.variables_by_type[(&variable.r#type).into()].get(&variable.name)
     }
 
     pub fn run(&mut self) -> Result<(), VMError> {
@@ -100,7 +124,7 @@ impl VM {
                 Instruction::StoreVar(variable) => {
                     let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let value = match variable.r#type {
-                        VariableType::Integer => match value {
+                        ast::VariableType::Integer => match value {
                             ir::Value::Integer(value) => ir::Value::Integer(value),
                             ir::Value::Long(value) => {
                                 ir::Value::Long(value.try_into().map_err(|_| VMError::Overflow)?)
@@ -122,7 +146,7 @@ impl VM {
                                 ));
                             }
                         },
-                        VariableType::Long => match value {
+                        ast::VariableType::Long => match value {
                             ir::Value::Integer(value) => {
                                 ir::Value::Long(value.try_into().map_err(|_| VMError::Overflow)?)
                             }
@@ -144,7 +168,7 @@ impl VM {
                                 ));
                             }
                         },
-                        VariableType::SinglePrecision => match value {
+                        ast::VariableType::SinglePrecision => match value {
                             ir::Value::Integer(value) => ir::Value::SinglePrecision(
                                 value.try_into().map_err(|_| VMError::Overflow)?,
                             ),
@@ -165,7 +189,7 @@ impl VM {
                                 ));
                             }
                         },
-                        VariableType::DoublePrecision => match value {
+                        ast::VariableType::DoublePrecision => match value {
                             ir::Value::Integer(value) => ir::Value::DoublePrecision(
                                 value.try_into().map_err(|_| VMError::Overflow)?,
                             ),
@@ -183,7 +207,7 @@ impl VM {
                                 ));
                             }
                         },
-                        VariableType::String => match value {
+                        ast::VariableType::String => match value {
                             ir::Value::String(value) => ir::Value::String(value),
                             _ => {
                                 return Err(VMError::TypeMismatch(
@@ -193,7 +217,7 @@ impl VM {
                             }
                         },
                     };
-                    self.variables_by_type[variable.r#type].insert(variable.name.clone(), value);
+                    self.variables_by_type[(&value.as_variable_type()).into()].insert(variable.name.clone(), value);
                 }
                 Instruction::Print => {
                     if let Some(value) = self.stack.pop() {
@@ -207,6 +231,12 @@ impl VM {
                                 (self.output_handler)(value.to_string())
                             }
                             ir::Value::String(value) => (self.output_handler)(value),
+                            ir::Value::Null => {
+                                return Err(VMError::TypeMismatch(
+                                    "null".to_string(),
+                                    "string".to_string(),
+                                ));
+                            }
                         }
                     } else {
                         return Err(VMError::StackUnderflow);
@@ -216,22 +246,23 @@ impl VM {
                     let input = (self.input_handler)();
                     let values = input.split(",").map(|v| v.trim().to_string());
                     for (variable, value) in variables.iter().zip(values) {
-                        self.variables_by_type[variable.r#type].insert(
+                        let var_type = (&variable.r#type).into();
+                        self.variables_by_type[var_type].insert(
                             variable.name.clone(),
                             match variable.r#type {
-                                VariableType::Integer => {
+                                ast::VariableType::Integer => {
                                     ir::Value::Integer(value.parse().map_err(|_| VMError::IOError)?)
                                 }
-                                VariableType::Long => {
+                                ast::VariableType::Long => {
                                     ir::Value::Long(value.parse().map_err(|_| VMError::IOError)?)
                                 }
-                                VariableType::SinglePrecision => ir::Value::SinglePrecision(
+                                ast::VariableType::SinglePrecision => ir::Value::SinglePrecision(
                                     value.parse().map_err(|_| VMError::IOError)?,
                                 ),
-                                VariableType::DoublePrecision => ir::Value::DoublePrecision(
+                                ast::VariableType::DoublePrecision => ir::Value::DoublePrecision(
                                     value.parse().map_err(|_| VMError::IOError)?,
                                 ),
-                                VariableType::String => ir::Value::String(value),
+                                ast::VariableType::String => ir::Value::String(value),
                             },
                         );
                     }
@@ -268,10 +299,62 @@ impl VM {
                     break;
                 }
                 Instruction::SetStatic => {
-                    self.array_storage_mode = Some(ArrayStorageMode::Static);
+                    self.array_storage
+                        .set_default_mode(ArrayStorageMode::Static);
                 }
                 Instruction::SetDynamic => {
-                    self.array_storage_mode = Some(ArrayStorageMode::Dynamic);
+                    self.array_storage
+                        .set_default_mode(ArrayStorageMode::Dynamic);
+                }
+                Instruction::DeclareArray {
+                    name,
+                    element_type,
+                    dimensions,
+                } => {
+                    self.array_storage.declare_array(
+                        name.clone(),
+                        element_type.clone(),
+                        dimensions.clone(),
+                    )?;
+                }
+                Instruction::LoadArrayElement { name, num_indices } => {
+                    let mut indices = Vec::with_capacity(*num_indices);
+                    for _ in 0..*num_indices {
+                        let index_value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let index = match index_value {
+                            ir::Value::Integer(i) => i as isize,
+                            ir::Value::Long(i) => i as isize,
+                            _ => return Err(VMError::TypeMismatch(
+                                index_value.type_name().to_string(),
+                                "integer".to_string(),
+                            )),
+                        };
+                        indices.push(index);
+                    }
+                    indices.reverse(); // Stack is LIFO, but we want first-to-last index order
+                    
+                    let value = self.array_storage.get_array_element(name, &indices)?;
+                    self.stack.push(value.clone());
+                }
+                Instruction::StoreArrayElement { name, num_indices } => {
+                    let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    
+                    let mut indices = Vec::with_capacity(*num_indices);
+                    for _ in 0..*num_indices {
+                        let index_value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let index = match index_value {
+                            ir::Value::Integer(i) => i as isize,
+                            ir::Value::Long(i) => i as isize,
+                            _ => return Err(VMError::TypeMismatch(
+                                index_value.type_name().to_string(),
+                                "integer".to_string(),
+                            )),
+                        };
+                        indices.push(index);
+                    }
+                    indices.reverse(); // Stack is LIFO, but we want first-to-last index order
+                    
+                    self.array_storage.set_array_element(name, &indices, value)?;
                 }
             }
 
@@ -281,4 +364,3 @@ impl VM {
         return Ok(());
     }
 }
-

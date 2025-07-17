@@ -8,23 +8,27 @@ statement = {
     assignment_statement |
     print_statement |
     input_statement |
+    dim_statement |
     comment
 }
 statement_separator = _{ "\n" | ":" | EOI }
 
-assignment_statement = { variable ~ assignment_operator ~ expression }
+assignment_statement = { (array_access | variable) ~ assignment_operator ~ expression }
 print_statement = { "PRINT" ~ expression }
 input_statement = { "INPUT" ~ (string ~ (";" | ","))? ~ variable ~ ("," ~ variable)* }
+dim_statement = { "DIM" ~ shared_keyword? ~ variable_without_type ~ ("(" ~ array_subscripts ~ ")")? ~ ("AS" ~ type_specifier)? }
 
 expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
-factor = { number | string | variable | ("(" ~ expression ~ ")") }
+factor = { number | string | array_access | variable | ("(" ~ expression ~ ")") }
 
 metacommand = { "$STATIC" | "$DYNAMIC" }
 
 number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? | "." ~ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ (single_precision_suffix | double_precision_suffix | string_suffix | integer_suffix | long_integer_suffix)? }
+variable_without_type = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
+array_access = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ "(" ~ expression ~ ("," ~ expression)* ~ ")" }
 
 
 // Date type suffixes
@@ -46,3 +50,9 @@ assignment_operator = { "=" }
 relational_operators = { "<" | "=" | ">" }
 
 remark_leader = { "'" | "REM" }
+shared_keyword = { "SHARED" }
+type_specifier = { "INTEGER" | "LONG" | "SINGLE" | "DOUBLE" | "STRING" | user_defined_type }
+user_defined_type = { ASCII_ALPHA ~ ("." | ASCII_ALPHANUMERIC)* }
+
+array_subscripts = { array_subscript ~ ("," ~ array_subscript)* }
+array_subscript = { (expression ~ "TO")? ~ expression }

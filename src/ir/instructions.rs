@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::{ast::Variable, ir::Value};
+use crate::ast::{Variable, VariableType};
+use crate::ir::Value;
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
@@ -10,6 +11,19 @@ pub enum Instruction {
     LoadVar(Variable),
     StoreVar(Variable),
     Input(Vec<Variable>),
+    DeclareArray {
+        name: String,
+        element_type: VariableType,
+        dimensions: Vec<(isize, isize)>, // (lower_bound, upper_bound) pairs
+    },
+    LoadArrayElement {
+        name: String,
+        num_indices: usize,
+    },
+    StoreArrayElement {
+        name: String,
+        num_indices: usize,
+    },
 
     Add,
     Subtract,

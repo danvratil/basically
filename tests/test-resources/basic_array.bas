@@ -1,0 +1,23 @@
+DIM A(10)
+DIM B(20 TO 30)
+DIM C(5) AS INTEGER
+D = 42
+DIM E(D / 2)
+DIM F(1 TO 10, 1 TO 10)
+DIM G(4, 0 TO 5)
+
+A(1) = 10
+A(2) = 20
+PRINT A(1)
+PRINT A(2)
+PRINT A(3)
+
+B(25) = 100
+PRINT B(25)
+
+F(4, 4) = 42
+PRINT F(4, 4)
+
+G(1, 0) = 99
+PRINT F(4, 4) + G(1, 0)
+

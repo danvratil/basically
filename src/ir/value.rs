@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::vm::VMError;
+use crate::{ast, vm::VMError};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -11,6 +11,8 @@ pub enum Value {
     DoublePrecision(f64),
     Integer(i16),
     Long(i32),
+    /// A special value indicating an absence of an value (like a null pointer)
+    Null,
 }
 
 impl Value {
@@ -21,6 +23,18 @@ impl Value {
             Value::DoublePrecision(_) => "double precision",
             Value::Integer(_) => "integer",
             Value::Long(_) => "long",
+            Value::Null => "null",
+        }
+    }
+
+    pub fn as_variable_type(&self) -> ast::VariableType {
+        match self {
+            Value::String(_) => ast::VariableType::String,
+            Value::SinglePrecision(_) => ast::VariableType::SinglePrecision,
+            Value::DoublePrecision(_) => ast::VariableType::DoublePrecision,
+            Value::Integer(_) => ast::VariableType::Integer,
+            Value::Long(_) => ast::VariableType::Long,
+            Value::Null => panic!("Null is not a valid variable type"),
         }
     }
 

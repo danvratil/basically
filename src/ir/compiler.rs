@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::ast;
+use crate::ast::{self, AssignmentTarget};
 use crate::ir;
 
 use itertools::chain;
@@ -26,13 +26,33 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
             chain!(compile_expression(expr), iter::once(ir::Instruction::Print)).collect()
         }
         ast::Statement::Assignment {
-            variable,
+            target,
             expression,
-        } => chain!(
-            compile_expression(expression),
-            iter::once(ir::Instruction::StoreVar(variable))
-        )
-        .collect(),
+        } => {
+            match target {
+                AssignmentTarget::Variable(variable) => {
+                    chain!(
+                        compile_expression(expression),
+                        iter::once(ir::Instruction::StoreVar(variable))
+                    ).collect()
+                }
+                AssignmentTarget::ArrayElement(array_access) => {
+                    chain!(
+                        // First compile index expressions (pushed first, will be popped last)
+                        array_access.indices.iter()
+                            .map(|expr| compile_expression(expr.clone()))
+                            .flatten(),
+                        // Then compile the value expression (pushed last, will be popped first)
+                        compile_expression(expression),
+                        // Store the array element using the value and indices from stack
+                        iter::once(ir::Instruction::StoreArrayElement {
+                            name: array_access.name,
+                            num_indices: array_access.indices.len(),
+                        })
+                    ).collect()
+                }
+            }
+        }
         ast::Statement::Input { prompt, variables } => chain!(
             prompt
                 .map(|p| compile_statement(ast::Statement::Print(ast::Expression::String(p))))
@@ -41,11 +61,33 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
             iter::once(ir::Instruction::Input(variables))
         )
         .collect(),
-        ast::Statement::Metacommand(metacommand) => {
-            match metacommand {
-                ast::Metacommand::Static => vec![ir::Instruction::SetStatic],
-                ast::Metacommand::Dynamic => vec![ir::Instruction::SetDynamic],
+        ast::Statement::Metacommand(metacommand) => match metacommand {
+            ast::Metacommand::Static => vec![ir::Instruction::SetStatic],
+            ast::Metacommand::Dynamic => vec![ir::Instruction::SetDynamic],
+        },
+        ast::Statement::Dim(array_decl) => {
+            // For each dimension, we need to determine the bounds
+            let mut dimensions = Vec::new();
+            for dim in &array_decl.dimensions {
+                let lower_bound = match &dim.lower {
+                    Some(ast::Expression::Integer(val)) => *val as isize,
+                    None => -1, // Special sentinel value for default bounds (will be adjusted based on STATIC/DYNAMIC)
+                    _ => return vec![], // For now, only support constant bounds
+                };
+                
+                let upper_bound = match &dim.upper {
+                    ast::Expression::Integer(val) => *val as isize,
+                    _ => return vec![], // For now, only support constant bounds
+                };
+                
+                dimensions.push((lower_bound, upper_bound));
             }
+            
+            vec![ir::Instruction::DeclareArray {
+                name: array_decl.name.clone(),
+                element_type: array_decl.element_type.clone(),
+                dimensions,
+            }]
         }
         ast::Statement::Noop => vec![],
     }
@@ -67,7 +109,7 @@ fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
                     ir::Value::DoublePrecision(value)
                 } else {
                     ir::Value::SinglePrecision(value as f32)
-                }
+                },
             )]
         }
         ast::Expression::String(value) => {
@@ -86,6 +128,23 @@ fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
         .collect(),
         ast::Expression::Variable(variable) => {
             vec![ir::Instruction::LoadVar(variable)]
+        }
+        ast::Expression::ArrayAccess(array_access) => {
+            let num_indices = array_access.indices.len();
+            chain!(
+                // Compile index expressions and push them to stack
+                array_access
+                    .indices
+                    .into_iter()
+                    .map(compile_expression)
+                    .flatten(),
+                // Load the array element using the indices from stack
+                iter::once(ir::Instruction::LoadArrayElement {
+                    name: array_access.name,
+                    num_indices,
+                })
+            )
+            .collect()
         }
     }
 }

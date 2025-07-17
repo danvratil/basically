@@ -4,7 +4,6 @@
 
 use std::collections::VecDeque;
 
-use enum_map::Enum;
 use pest::iterators::Pair;
 use thiserror::Error;
 
@@ -45,11 +44,36 @@ impl TryFrom<Pair<'_, Rule>> for Program {
 }
 
 #[derive(Debug, Clone)]
+pub struct ArrayDimension {
+    pub lower: Option<Expression>,
+    pub upper: Expression,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayDeclaration {
+    pub name: String,
+    pub element_type: VariableType,
+    pub dimensions: Vec<ArrayDimension>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayAccess {
+    pub name: String,
+    pub indices: Vec<Expression>,
+}
+
+#[derive(Debug, Clone)]
+pub enum AssignmentTarget {
+    Variable(Variable),
+    ArrayElement(ArrayAccess),
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Noop,
     Print(Expression),
     Assignment {
-        variable: Variable,
+        target: AssignmentTarget,
         expression: Expression,
     },
     Input {
@@ -57,6 +81,7 @@ pub enum Statement {
         variables: Vec<Variable>,
     },
     Metacommand(Metacommand),
+    Dim(ArrayDeclaration),
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -84,20 +109,27 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         "Invalid assignment statement".to_string(),
                     ));
                 }
-                let variable = Variable::try_from(
-                    elements
-                        .pop_front()
-                        .ok_or(AstError::InvalidStatement(
-                            "Empty assignment variable".to_string(),
-                        ))?
-                        .as_str(),
-                )?;
+                
+                let first_element = elements
+                    .pop_front()
+                    .ok_or(AstError::InvalidStatement(
+                        "Empty assignment target".to_string(),
+                    ))?;
+                
+                let target = match first_element.as_rule() {
+                    Rule::variable => AssignmentTarget::Variable(Variable::try_from(first_element)?),
+                    Rule::array_access => AssignmentTarget::ArrayElement(ArrayAccess::try_from(first_element)?),
+                    _ => return Err(AstError::InvalidStatement(
+                        "Invalid assignment target".to_string(),
+                    )),
+                };
+                
                 elements.pop_front(); // pop the assignment operator
                 let expression = Expression::try_from(elements.pop_front().ok_or(
                     AstError::InvalidStatement("Empty assignment expression".to_string()),
                 )?)?;
                 Ok(Statement::Assignment {
-                    variable,
+                    target,
                     expression,
                 })
             }
@@ -144,15 +176,84 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
             Rule::comment => {
                 let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
                 // Pop the remark leader (REM or ')
-                let _ = elements.pop_front().ok_or(AstError::InvalidStatement(
-                    "Empty comment".to_string(),
-                ))?;
+                let _ = elements
+                    .pop_front()
+                    .ok_or(AstError::InvalidStatement("Empty comment".to_string()))?;
                 // Pop the metacommand if present, otherwise this is a noop
                 match elements.pop_front().map(|p| p.as_str()) {
                     Some("$STATIC") => Ok(Statement::Metacommand(Metacommand::Static)),
                     Some("$DYNAMIC") => Ok(Statement::Metacommand(Metacommand::Dynamic)),
-                    _ => Ok(Statement::Noop)
+                    _ => Ok(Statement::Noop),
                 }
+            }
+            Rule::dim_statement => {
+                let mut elements = statement.into_inner();
+                
+                // Skip optional SHARED keyword
+                let mut current = elements.next().ok_or(AstError::InvalidStatement(
+                    "Empty dim statement".to_string(),
+                ))?;
+                if current.as_rule() == Rule::shared_keyword {
+                    current = elements.next().ok_or(AstError::InvalidStatement(
+                        "Missing variable name in dim statement".to_string(),
+                    ))?;
+                }
+                
+                // Get variable name
+                let name = current.as_str().to_string();
+                
+                // Parse array subscripts if present
+                let mut dimensions = Vec::new();
+                if let Some(subscripts_pair) = elements.next() {
+                    if subscripts_pair.as_rule() == Rule::array_subscripts {
+                        for subscript_pair in subscripts_pair.into_inner() {
+                            let mut subscript_elements = subscript_pair.into_inner();
+                            
+                            let first_expr = Expression::try_from(subscript_elements.next().ok_or(
+                                AstError::InvalidStatement("Empty array subscript".to_string()),
+                            )?)?;
+                            
+                            // Check if this is a "TO" expression or just an upper bound
+                            if let Some(second_expr) = subscript_elements.next() {
+                                // This is "lower TO upper" format
+                                dimensions.push(ArrayDimension {
+                                    lower: Some(first_expr),
+                                    upper: Expression::try_from(second_expr)?,
+                                });
+                            } else {
+                                // This is just "upper" format (lower bound defaults to 0 or 1)
+                                dimensions.push(ArrayDimension {
+                                    lower: None,
+                                    upper: first_expr,
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                // Parse type specifier if present
+                let element_type = if let Some(type_pair) = elements.next() {
+                    if type_pair.as_rule() == Rule::type_specifier {
+                        match type_pair.as_str() {
+                            "INTEGER" => VariableType::Integer,
+                            "LONG" => VariableType::Long,
+                            "SINGLE" => VariableType::SinglePrecision,
+                            "DOUBLE" => VariableType::DoublePrecision,
+                            "STRING" => VariableType::String,
+                            _ => VariableType::Integer, // Default for user-defined types
+                        }
+                    } else {
+                        VariableType::Integer // Default
+                    }
+                } else {
+                    VariableType::Integer // Default
+                };
+                
+                Ok(Statement::Dim(ArrayDeclaration {
+                    name,
+                    element_type,
+                    dimensions,
+                }))
             }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected statement, got {:?}",
@@ -173,6 +274,7 @@ pub enum Expression {
         right: Box<Expression>,
     },
     Variable(Variable),
+    ArrayAccess(ArrayAccess),
 }
 
 impl TryFrom<Pair<'_, Rule>> for Expression {
@@ -228,10 +330,13 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
 
                 Ok(result)
             }
-            Rule::variable => Ok(Expression::Variable(Variable::try_from(expr.as_str())?)),
+            Rule::variable => Ok(Expression::Variable(Variable::try_from(expr)?)),
             Rule::factor => {
                 let mut inner = expr.clone().into_inner();
                 Ok(Expression::try_from(inner.next().unwrap())?)
+            }
+            Rule::array_access => {
+                Ok(Expression::ArrayAccess(ArrayAccess::try_from(expr)?))
             }
             Rule::number => {
                 let number = expr.as_str();
@@ -283,7 +388,7 @@ impl TryFrom<Pair<'_, Rule>> for BinaryOperator {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Enum)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VariableType {
     // Suffix: $
     String,
@@ -303,28 +408,65 @@ pub struct Variable {
     pub r#type: VariableType,
 }
 
-impl TryFrom<&str> for Variable {
+impl TryFrom<Pair<'_, Rule>> for ArrayAccess {
     type Error = AstError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let r#type = match value.chars().last() {
-            Some('$') => Some(VariableType::String),
-            Some('!') => Some(VariableType::SinglePrecision),
-            Some('#') => Some(VariableType::DoublePrecision),
-            Some('%') => Some(VariableType::Integer),
-            Some('&') => Some(VariableType::Long),
-            Some(_) => None,
-            None => {
-                return Err(AstError::InvalidStatement(
-                    "Variable name too short".to_string(),
-                ));
+    fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match value.as_rule() {
+            Rule::array_access => {
+                let full_text = value.as_str();
+                
+                // Extract array name from the full text (everything before the opening parenthesis)
+                let name = full_text.split('(').next()
+                    .ok_or(AstError::InvalidExpression("Invalid array access format".to_string()))?
+                    .to_string();
+                
+                // Get index expressions from the inner elements
+                let indices = value.into_inner()
+                    .map(Expression::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+                
+                Ok(ArrayAccess { name, indices })
             }
-        };
+            _ => Err(AstError::InvalidExpression(format!(
+                "Expected array_access, got {:?}",
+                value.as_rule()
+            ))),
+        }
+    }
+}
 
-        let name = if r#type.is_some() {
-            value[..value.len() - 1].to_string()
+impl TryFrom<Pair<'_, Rule>> for Variable {
+    type Error = AstError;
+
+    fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        let full_text = value.as_str();
+        
+        if full_text.is_empty() {
+            return Err(AstError::InvalidStatement(
+                "Variable name cannot be empty".to_string(),
+            ));
+        }
+
+        if full_text.len() > 40 {
+            return Err(AstError::InvalidStatement(
+                "Variable name too long".to_string(),
+            ));
+        }
+
+        // Parse the variable name and type suffix
+        let (name, r#type) = if full_text.ends_with('!') {
+            (full_text[..full_text.len()-1].to_string(), VariableType::SinglePrecision)
+        } else if full_text.ends_with('#') {
+            (full_text[..full_text.len()-1].to_string(), VariableType::DoublePrecision)
+        } else if full_text.ends_with('$') {
+            (full_text[..full_text.len()-1].to_string(), VariableType::String)
+        } else if full_text.ends_with('%') {
+            (full_text[..full_text.len()-1].to_string(), VariableType::Integer)
+        } else if full_text.ends_with('&') {
+            (full_text[..full_text.len()-1].to_string(), VariableType::Long)
         } else {
-            value.to_string()
+            (full_text.to_string(), VariableType::Integer) // Default type
         };
 
         if name.is_empty() {
@@ -333,18 +475,7 @@ impl TryFrom<&str> for Variable {
             ));
         }
 
-        if name.len() > 40 {
-            return Err(AstError::InvalidStatement(
-                "Variable name too long".to_string(),
-            ));
-        }
-
-        // Other variable name constraints should be covered by the grammar.
-
-        Ok(Variable {
-            name,
-            r#type: r#type.unwrap_or(VariableType::Integer),
-        })
+        Ok(Variable { name, r#type })
     }
 }
 
