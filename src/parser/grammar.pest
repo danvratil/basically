@@ -1,7 +1,7 @@
 WHITESPACE = _{ " " | "\t" }
 COMMENT = _{ "'" | "REM" ~ (!"\n" ~ ANY)* }
 
-program = { SOI ~ (statement ~ statement_separator)* ~ EOI }
+program = { SOI ~ ((statement ~ statement_separator) | "\n")* ~ EOI }
 
 statement = {
     assignment_statement |
