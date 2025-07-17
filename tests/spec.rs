@@ -9,6 +9,7 @@ use assert2::assert;
 #[parameterized(
     basic_print = { "basic_print" },
     basic_arithmetic = { "basic_arithmetic" },
+    basic_variables = { "basic_variables" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{}.bas", name)).unwrap();

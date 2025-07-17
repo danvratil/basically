@@ -3,14 +3,20 @@ COMMENT = _{ "'" | "REM" ~ (!"\n" ~ ANY)* }
 
 program = { SOI ~ (statement ~ statement_separator)* ~ EOI }
 
-statement = { print_statement }
+statement = {
+    assignment_statement |
+    print_statement 
+}
 statement_separator = _{ "\n" | ":" | EOI }
 
+assignment_statement = { variable ~ assignment_operator ~ expression }
 print_statement = { "PRINT" ~ expression }
 
 expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
-factor = { number | ("(" ~ expression ~ ")") }
+factor = { number | variable | ("(" ~ expression ~ ")") }
+
+variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
 
 number = @{ ASCII_DIGIT+ }
 

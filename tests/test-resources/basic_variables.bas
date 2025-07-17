@@ -1,0 +1,9 @@
+A = 5
+PRINT A
+B = 4 + 5
+PRINT B
+C = A + 1
+PRINT C
+D = C + B
+PRINT D
+PRINT A + B

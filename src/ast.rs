@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::collections::VecDeque;
+
 use pest::iterators::Pair;
 use thiserror::Error;
 
@@ -44,6 +46,10 @@ impl TryFrom<Pair<'_, Rule>> for Program {
 #[derive(Debug, Clone)]
 pub enum Statement {
     Print(Expression),
+    Assignment {
+        variable: String,
+        expression: Expression,
+    },
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -64,6 +70,29 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         "Empty print statement".to_string(),
                     ))?,
             )?)),
+            Rule::assignment_statement => {
+                let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
+                if elements.len() != 3 {
+                    return Err(AstError::InvalidStatement(
+                        "Invalid assignment statement".to_string(),
+                    ));
+                }
+                let variable = elements
+                    .pop_front()
+                    .ok_or(AstError::InvalidStatement(
+                        "Empty assignment variable".to_string(),
+                    ))?
+                    .as_str()
+                    .to_string();
+                elements.pop_front(); // pop the assignment operator
+                let expression = Expression::try_from(elements.pop_front().ok_or(
+                    AstError::InvalidStatement("Empty assignment expression".to_string()),
+                )?)?;
+                Ok(Statement::Assignment {
+                    variable,
+                    expression,
+                })
+            }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected print statement, got {:?}",
                 statement.as_rule()
@@ -80,6 +109,7 @@ pub enum Expression {
         op: BinaryOperator,
         right: Box<Expression>,
     },
+    Variable(String),
 }
 
 impl TryFrom<Pair<'_, Rule>> for Expression {
@@ -89,56 +119,57 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
         match expr.as_rule() {
             Rule::expression => {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
-                
+
                 if elements.is_empty() {
                     return Err(AstError::InvalidExpression("Empty expression".to_string()));
                 }
-                
+
                 // Start with the first term
                 let mut result = Expression::try_from(elements.remove(0))?;
-                
+
                 // Process remaining operator-term pairs
                 while elements.len() >= 2 {
                     let op = BinaryOperator::try_from(elements.remove(0))?;
                     let right = Expression::try_from(elements.remove(0))?;
-                    
+
                     result = Expression::BinaryOp {
                         left: Box::new(result),
                         op,
                         right: Box::new(right),
                     };
                 }
-                
+
                 Ok(result)
             }
             Rule::term => {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
-                
+
                 if elements.is_empty() {
                     return Err(AstError::InvalidExpression("Empty term".to_string()));
                 }
-                
+
                 // Start with the first factor
                 let mut result = Expression::try_from(elements.remove(0))?;
-                
+
                 // Process remaining operator-factor pairs
                 while elements.len() >= 2 {
                     let op = BinaryOperator::try_from(elements.remove(0))?;
                     let right = Expression::try_from(elements.remove(0))?;
-                    
+
                     result = Expression::BinaryOp {
                         left: Box::new(result),
                         op,
                         right: Box::new(right),
                     };
                 }
-                
+
                 Ok(result)
-            },
+            }
+            Rule::variable => Ok(Expression::Variable(expr.as_str().to_string())),
             Rule::factor => {
                 let mut inner = expr.clone().into_inner();
                 Ok(Expression::try_from(inner.next().unwrap())?)
-            },            
+            }
             Rule::number => Ok(Expression::Integer(expr.as_str().parse::<i16>().map_err(
                 |e| AstError::InvalidExpression(format!("Invalid integer: {e}")),
             )?)),

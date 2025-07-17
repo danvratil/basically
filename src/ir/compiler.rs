@@ -28,6 +28,13 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
                 iter::once(ir::Instruction::Print)
             )
             .collect(),
+        ast::Statement::Assignment { variable, expression } => {
+            chain!(
+                compile_expression(expression),
+                iter::once(ir::Instruction::StoreVar(variable))
+            )
+            .collect()
+        }
     }
 }
 
@@ -48,6 +55,9 @@ fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
                 })
             )
             .collect()
+        },
+        ast::Expression::Variable(variable) => {
+            vec![ir::Instruction::LoadVar(variable)]
         }
     }
 }

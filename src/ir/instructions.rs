@@ -5,6 +5,8 @@
 #[derive(Debug, Clone)]
 pub enum Instruction {
     LoadConst(i16),
+    LoadVar(String),
+    StoreVar(String),
 
     Add,
     Subtract,
