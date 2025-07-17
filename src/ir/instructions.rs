@@ -9,6 +9,7 @@ pub enum Instruction {
     LoadConst(Value),
     LoadVar(String),
     StoreVar(String),
+    Input(Vec<String>),
 
     Add,
     Subtract,

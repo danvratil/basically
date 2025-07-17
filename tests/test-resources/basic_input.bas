@@ -1,0 +1,7 @@
+INPUT A
+PRINT A
+INPUT "Your age", A
+PRINT A
+INPUT "Input A, B", A, B
+PRINT A
+PRINT B

@@ -50,6 +50,10 @@ pub enum Statement {
         variable: String,
         expression: Expression,
     },
+    Input {
+        prompt: Option<String>,
+        variables: Vec<String>,
+    },
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -92,6 +96,46 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     variable,
                     expression,
                 })
+            }
+            Rule::input_statement => {
+                let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
+                if elements.is_empty() {
+                    return Err(AstError::InvalidStatement(
+                        "Invalid input statement: at least one argument is required".to_string(),
+                    ));
+                }
+
+                let mut prompt = None;
+                let mut variables = Vec::new();
+
+                let first_expr = Expression::try_from(elements.pop_front().ok_or(
+                    AstError::InvalidStatement("Empty input expression".to_string()),
+                )?)?;
+                match first_expr {
+                    Expression::String(s) => prompt = Some(s),
+                    Expression::Variable(v) => variables.push(v),
+                    _ => {
+                        return Err(AstError::InvalidStatement(format!(
+                            "Invalid input expression: {:?}",
+                            first_expr
+                        )));
+                    }
+                }
+
+                while !elements.is_empty() {
+                    let expr = Expression::try_from(elements.pop_front().ok_or(
+                        AstError::InvalidStatement("Empty input expression".to_string()),
+                    )?)?;
+                    if let Expression::Variable(v) = expr {
+                        variables.push(v);
+                    } else {
+                        return Err(AstError::InvalidStatement(format!(
+                            "Invalid input expression: {:?}",
+                            expr
+                        )));
+                    }
+                }
+                Ok(Statement::Input { prompt, variables })
             }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected print statement, got {:?}",
@@ -178,7 +222,7 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
                 // Don't store the string with the quotes
                 let string = expr.as_str();
                 Ok(Expression::String(string[1..string.len() - 1].to_string()))
-            },
+            }
             _ => Err(AstError::InvalidExpression(format!(
                 "Expected integer, got {:?}",
                 expr.as_rule()

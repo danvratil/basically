@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use basically::ast::Program;
-use basically::ir;
 use basically::parser::{BasicParser, Rule};
 use basically::vm::VM;
+use basically::{default_input_handler, default_output_handler, ir};
 
 use pest::Parser;
 use pest::iterators::Pair;
@@ -47,6 +47,10 @@ fn main() {
     println!("{:?}", ir_program);
 
     println!("\n=== Executing ===");
-    let mut vm = VM::new(ir_program, Box::new(|output| println!("{}", output)));
+    let mut vm = VM::new(
+        ir_program,
+        Box::new(default_output_handler),
+        Box::new(default_input_handler),
+    );
     vm.run().expect("Failed to run program");
 }

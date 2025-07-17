@@ -1,0 +1,6 @@
+42
+Your age
+35
+Input A, B
+3
+9

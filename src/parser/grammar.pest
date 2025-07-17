@@ -5,12 +5,14 @@ program = { SOI ~ (statement ~ statement_separator)* ~ EOI }
 
 statement = {
     assignment_statement |
-    print_statement 
+    print_statement |
+    input_statement 
 }
 statement_separator = _{ "\n" | ":" | EOI }
 
 assignment_statement = { variable ~ assignment_operator ~ expression }
 print_statement = { "PRINT" ~ expression }
+input_statement = { "INPUT" ~ (string ~ (";" | ","))? ~ variable ~ ("," ~ variable)* }
 
 expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
