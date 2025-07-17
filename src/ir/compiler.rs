@@ -47,7 +47,21 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
 fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
     match expr {
         ast::Expression::Integer(value) => {
-            vec![ir::Instruction::LoadConst(ir::Value::Number(value))]
+            vec![ir::Instruction::LoadConst(
+                TryInto::<i16>::try_into(value)
+                    .map(ir::Value::Integer)
+                    .unwrap_or(ir::Value::Long(value)),
+            )]
+        }
+        ast::Expression::Float(value) => {
+            vec![ir::Instruction::LoadConst(
+                // TODO: Does this actually work?
+                if value > f32::MAX as f64 || value < f32::MIN as f64 {
+                    ir::Value::DoublePrecision(value)
+                } else {
+                    ir::Value::SinglePrecision(value as f32)
+                }
+            )]
         }
         ast::Expression::String(value) => {
             vec![ir::Instruction::LoadConst(ir::Value::String(value))]

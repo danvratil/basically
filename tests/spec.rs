@@ -14,6 +14,8 @@ use yare::parameterized;
     basic_variables = { "basic_variables" },
     basic_string = { "basic_string" },
     basic_input = { "basic_input" },
+    // FIXME: Currently fails to due issues with Float precision
+    //typed_variables = { "typed_variables" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{}.bas", name)).unwrap();

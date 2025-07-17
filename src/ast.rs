@@ -4,6 +4,7 @@
 
 use std::collections::VecDeque;
 
+use enum_map::Enum;
 use pest::iterators::Pair;
 use thiserror::Error;
 
@@ -47,12 +48,12 @@ impl TryFrom<Pair<'_, Rule>> for Program {
 pub enum Statement {
     Print(Expression),
     Assignment {
-        variable: String,
+        variable: Variable,
         expression: Expression,
     },
     Input {
         prompt: Option<String>,
-        variables: Vec<String>,
+        variables: Vec<Variable>,
     },
 }
 
@@ -81,13 +82,14 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         "Invalid assignment statement".to_string(),
                     ));
                 }
-                let variable = elements
-                    .pop_front()
-                    .ok_or(AstError::InvalidStatement(
-                        "Empty assignment variable".to_string(),
-                    ))?
-                    .as_str()
-                    .to_string();
+                let variable = Variable::try_from(
+                    elements
+                        .pop_front()
+                        .ok_or(AstError::InvalidStatement(
+                            "Empty assignment variable".to_string(),
+                        ))?
+                        .as_str(),
+                )?;
                 elements.pop_front(); // pop the assignment operator
                 let expression = Expression::try_from(elements.pop_front().ok_or(
                     AstError::InvalidStatement("Empty assignment expression".to_string()),
@@ -147,14 +149,15 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    Integer(i16), // QBasic integer types were 16-bit signed integers
+    Integer(i32),
+    Float(f64),
     String(String),
     BinaryOp {
         left: Box<Expression>,
         op: BinaryOperator,
         right: Box<Expression>,
     },
-    Variable(String),
+    Variable(Variable),
 }
 
 impl TryFrom<Pair<'_, Rule>> for Expression {
@@ -210,14 +213,19 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
 
                 Ok(result)
             }
-            Rule::variable => Ok(Expression::Variable(expr.as_str().to_string())),
+            Rule::variable => Ok(Expression::Variable(Variable::try_from(expr.as_str())?)),
             Rule::factor => {
                 let mut inner = expr.clone().into_inner();
                 Ok(Expression::try_from(inner.next().unwrap())?)
             }
-            Rule::number => Ok(Expression::Integer(expr.as_str().parse::<i16>().map_err(
-                |e| AstError::InvalidExpression(format!("Invalid integer: {e}")),
-            )?)),
+            Rule::number => {
+                let number = expr.as_str();
+                if number.contains('.') {
+                    Ok(Expression::Float(number.parse::<f64>().map_err(|e| AstError::InvalidExpression(format!("Invalid float: {e}")))?))
+                } else {
+                    Ok(Expression::Integer(number.parse::<i32>().map_err(|e| AstError::InvalidExpression(format!("Invalid integer: {e}")))?))
+                }
+            }
             Rule::string => {
                 // Don't store the string with the quotes
                 let string = expr.as_str();
@@ -253,5 +261,70 @@ impl TryFrom<Pair<'_, Rule>> for BinaryOperator {
                 op
             ))),
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Enum)]
+pub enum VariableType {
+    // Suffix: $
+    String,
+    // Suffix !
+    SinglePrecision,
+    // Suffix #
+    DoublePrecision,
+    // Suffix %
+    Integer, // default
+    // Suffix &
+    Long,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Variable {
+    pub name: String,
+    pub r#type: VariableType,
+}
+
+impl TryFrom<&str> for Variable {
+    type Error = AstError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let r#type = match value.chars().last() {
+            Some('$') => Some(VariableType::String),
+            Some('!') => Some(VariableType::SinglePrecision),
+            Some('#') => Some(VariableType::DoublePrecision),
+            Some('%') => Some(VariableType::Integer),
+            Some('&') => Some(VariableType::Long),
+            Some(_) => None,
+            None => {
+                return Err(AstError::InvalidStatement(
+                    "Variable name too short".to_string(),
+                ));
+            }
+        };
+
+        let name = if r#type.is_some() {
+            value[..value.len() - 1].to_string()
+        } else {
+            value.to_string()
+        };
+
+        if name.is_empty() {
+            return Err(AstError::InvalidStatement(
+                "Variable name cannot be empty".to_string(),
+            ));
+        }
+
+        if name.len() > 40 {
+            return Err(AstError::InvalidStatement(
+                "Variable name too long".to_string(),
+            ));
+        }
+
+        // Other variable name constraints should be covered by the grammar.
+
+        Ok(Variable {
+            name,
+            r#type: r#type.unwrap_or(VariableType::Integer),
+        })
     }
 }

@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::ir::Value;
+use crate::{ast::Variable, ir::Value};
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
     LoadConst(Value),
-    LoadVar(String),
-    StoreVar(String),
-    Input(Vec<String>),
+    LoadVar(Variable),
+    StoreVar(Variable),
+    Input(Vec<Variable>),
 
     Add,
     Subtract,

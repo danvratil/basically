@@ -4,7 +4,12 @@
 
 use std::collections::HashMap;
 
-use crate::{ir, InputHandler, OutputHandler};
+use crate::{
+    InputHandler, OutputHandler,
+    ast::{Variable, VariableType},
+    ir,
+};
+use enum_map::{EnumMap, enum_map};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -23,6 +28,9 @@ pub enum VMError {
 
     #[error("IO error")]
     IOError,
+
+    #[error("Overflow")]
+    Overflow,
 }
 
 pub struct VM {
@@ -30,7 +38,7 @@ pub struct VM {
     pc: usize,
     instructions: Vec<ir::Instruction>,
 
-    variables: HashMap<String, ir::Value>,
+    variables_by_type: EnumMap<VariableType, HashMap<String, ir::Value>>,
 
     output_handler: OutputHandler,
     input_handler: InputHandler,
@@ -46,10 +54,20 @@ impl VM {
             stack: vec![],
             pc: 0,
             instructions: program.instructions,
-            variables: HashMap::new(),
+            variables_by_type: enum_map! {
+                VariableType::String => HashMap::new(),
+                VariableType::SinglePrecision => HashMap::new(),
+                VariableType::DoublePrecision => HashMap::new(),
+                VariableType::Integer => HashMap::new(),
+                VariableType::Long => HashMap::new(),
+            },
             output_handler,
             input_handler,
         }
+    }
+
+    fn load_variable(&self, variable: &Variable) -> Option<&ir::Value> {
+        self.variables_by_type[variable.r#type].get(&variable.name)
     }
 
     pub fn run(&mut self) -> Result<(), VMError> {
@@ -59,109 +77,183 @@ impl VM {
             }
 
             use ir::Instruction;
-            match self.instructions[self.pc] {
-                Instruction::LoadConst(ref value) => {
+            match &self.instructions[self.pc] {
+                Instruction::LoadConst(value) => {
                     self.stack.push(value.clone());
                 }
-                Instruction::LoadVar(ref variable) => {
-                    if let Some(value) = self.variables.get(variable) {
+                Instruction::LoadVar(variable) => {
+                    if let Some(value) = self.load_variable(&variable) {
                         self.stack.push(value.clone());
                     } else {
-                        return Err(VMError::UndefinedVariable(variable.clone()));
+                        return Err(VMError::UndefinedVariable(variable.name.clone()));
                     }
                 }
-                Instruction::StoreVar(ref variable) => {
-                    self.variables.insert(
-                        variable.clone(),
-                        self.stack.pop().ok_or(VMError::StackUnderflow)?,
-                    );
+                Instruction::StoreVar(variable) => {
+                    let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let value = match variable.r#type {
+                        VariableType::Integer => match value {
+                            ir::Value::Integer(value) => ir::Value::Integer(value),
+                            ir::Value::Long(value) => {
+                                ir::Value::Long(value.try_into().map_err(|_| VMError::Overflow)?)
+                            }
+                            ir::Value::SinglePrecision(value) => ir::Value::Integer(
+                                (value.round_ties_even() as i32)
+                                    .try_into()
+                                    .map_err(|_| VMError::Overflow)?,
+                            ),
+                            ir::Value::DoublePrecision(value) => ir::Value::Integer(
+                                (value.round_ties_even() as i64)
+                                    .try_into()
+                                    .map_err(|_| VMError::Overflow)?,
+                            ),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    value.type_name().to_string(),
+                                    "integer".to_string(),
+                                ));
+                            }
+                        },
+                        VariableType::Long => match value {
+                            ir::Value::Integer(value) => {
+                                ir::Value::Long(value.try_into().map_err(|_| VMError::Overflow)?)
+                            }
+                            ir::Value::Long(value) => ir::Value::Long(value),
+                            ir::Value::SinglePrecision(value) => ir::Value::Long(
+                                (value.round_ties_even() as i32)
+                                    .try_into()
+                                    .map_err(|_| VMError::Overflow)?,
+                            ),
+                            ir::Value::DoublePrecision(value) => ir::Value::Long(
+                                (value.round_ties_even() as i64)
+                                    .try_into()
+                                    .map_err(|_| VMError::Overflow)?,
+                            ),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    value.type_name().to_string(),
+                                    "long".to_string(),
+                                ));
+                            }
+                        },
+                        VariableType::SinglePrecision => match value {
+                            ir::Value::Integer(value) => ir::Value::SinglePrecision(
+                                value.try_into().map_err(|_| VMError::Overflow)?,
+                            ),
+                            ir::Value::Long(value) => ir::Value::SinglePrecision(value as f32),
+                            ir::Value::SinglePrecision(value) => ir::Value::SinglePrecision(value),
+                            ir::Value::DoublePrecision(value) => ir::Value::SinglePrecision(
+                                // FIXME: Does this actually work?
+                                if value >= f32::MIN as f64 && value <= f32::MAX as f64 {
+                                    value as f32
+                                } else {
+                                    return Err(VMError::Overflow);
+                                },
+                            ),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    value.type_name().to_string(),
+                                    "single precision".to_string(),
+                                ));
+                            }
+                        },
+                        VariableType::DoublePrecision => match value {
+                            ir::Value::Integer(value) => ir::Value::DoublePrecision(
+                                value.try_into().map_err(|_| VMError::Overflow)?,
+                            ),
+                            ir::Value::Long(value) => ir::Value::DoublePrecision(
+                                value.try_into().map_err(|_| VMError::Overflow)?,
+                            ),
+                            ir::Value::SinglePrecision(value) => ir::Value::DoublePrecision(
+                                value.try_into().map_err(|_| VMError::Overflow)?,
+                            ),
+                            ir::Value::DoublePrecision(value) => ir::Value::DoublePrecision(value),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    value.type_name().to_string(),
+                                    "double precision".to_string(),
+                                ));
+                            }
+                        },
+                        VariableType::String => match value {
+                            ir::Value::String(value) => ir::Value::String(value),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    value.type_name().to_string(),
+                                    "string".to_string(),
+                                ));
+                            }
+                        },
+                    };
+                    self.variables_by_type[variable.r#type].insert(variable.name.clone(), value);
                 }
                 Instruction::Print => {
                     if let Some(value) = self.stack.pop() {
                         match value {
-                            ir::Value::Number(value) => (self.output_handler)(value.to_string()),
+                            ir::Value::Integer(value) => (self.output_handler)(value.to_string()),
+                            ir::Value::Long(value) => (self.output_handler)(value.to_string()),
+                            ir::Value::SinglePrecision(value) => {
+                                (self.output_handler)(value.to_string())
+                            }
+                            ir::Value::DoublePrecision(value) => {
+                                (self.output_handler)(value.to_string())
+                            }
                             ir::Value::String(value) => (self.output_handler)(value),
                         }
                     } else {
                         return Err(VMError::StackUnderflow);
                     }
                 }
-                Instruction::Input(ref variables) => {
+                Instruction::Input(variables) => {
                     let input = (self.input_handler)();
                     let values = input.split(",").map(|v| v.trim().to_string());
-                    println!("Input: {input}");
-                    println!("Variables: {:?}", variables);
                     for (variable, value) in variables.iter().zip(values) {
-                        self.variables.insert(
-                            variable.clone(),
-                            ir::Value::Number(value.parse::<i16>().map_err(|_| {
-                                VMError::IOError
-                            })?)
+                        self.variables_by_type[variable.r#type].insert(
+                            variable.name.clone(),
+                            match variable.r#type {
+                                VariableType::Integer => {
+                                    ir::Value::Integer(value.parse().map_err(|_| VMError::IOError)?)
+                                }
+                                VariableType::Long => {
+                                    ir::Value::Long(value.parse().map_err(|_| VMError::IOError)?)
+                                }
+                                VariableType::SinglePrecision => ir::Value::SinglePrecision(
+                                    value.parse().map_err(|_| VMError::IOError)?,
+                                ),
+                                VariableType::DoublePrecision => ir::Value::DoublePrecision(
+                                    value.parse().map_err(|_| VMError::IOError)?,
+                                ),
+                                VariableType::String => ir::Value::String(value),
+                            },
                         );
                     }
                 }
                 Instruction::Add => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    match (&a, &b) {
-                        (ir::Value::Number(a), ir::Value::Number(b)) => {
-                            self.stack.push(ir::Value::Number(a + b));
-                        }
-                        (ir::Value::String(a), ir::Value::String(b)) => {
-                            self.stack.push(ir::Value::String(format!("{a}{b}")));
-                        }
-                        _ => {
-                            return Err(VMError::TypeMismatch(
-                                a.type_name().to_string(),
-                                b.type_name().to_string(),
-                            ));
-                        }
-                    }
+
+                    self.stack
+                        .push(a.checked_add(&b)?.ok_or(VMError::Overflow)?);
                 }
                 Instruction::Subtract => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    match (&a, &b) {
-                        (ir::Value::Number(a), ir::Value::Number(b)) => {
-                            self.stack.push(ir::Value::Number(a - b));
-                        }
-                        _ => {
-                            return Err(VMError::TypeMismatch(
-                                a.type_name().to_string(),
-                                b.type_name().to_string(),
-                            ));
-                        }
-                    }
+
+                    self.stack
+                        .push(a.checked_sub(&b)?.ok_or(VMError::Overflow)?);
                 }
                 Instruction::Multiply => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    match (&a, &b) {
-                        (ir::Value::Number(a), ir::Value::Number(b)) => {
-                            self.stack.push(ir::Value::Number(a * b));
-                        }
-                        _ => {
-                            return Err(VMError::TypeMismatch(
-                                a.type_name().to_string(),
-                                b.type_name().to_string(),
-                            ));
-                        }
-                    }
+
+                    self.stack
+                        .push(a.checked_mul(&b)?.ok_or(VMError::Overflow)?);
                 }
                 Instruction::Divide => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    match (&a, &b) {
-                        (ir::Value::Number(a), ir::Value::Number(b)) => {
-                            self.stack.push(ir::Value::Number(a / b));
-                        }
-                        _ => {
-                            return Err(VMError::TypeMismatch(
-                                a.type_name().to_string(),
-                                b.type_name().to_string(),
-                            ));
-                        }
-                    }
+
+                    self.stack
+                        .push(a.checked_div(&b)?.ok_or(VMError::Overflow)?);
                 }
                 Instruction::Halt => {
                     break;

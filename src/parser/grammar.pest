@@ -18,9 +18,9 @@ expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
 factor = { number | string | variable | ("(" ~ expression ~ ")") }
 
-number = @{ ASCII_DIGIT+ }
+number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? | "." ~ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
-variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
+variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ (single_precision_suffix | double_precision_suffix | string_suffix | integer_suffix | long_integer_suffix)? }
 
 
 // Date type suffixes
