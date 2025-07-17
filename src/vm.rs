@@ -12,6 +12,12 @@ use crate::{
 use enum_map::{EnumMap, enum_map};
 use thiserror::Error;
 
+#[derive(Debug, Clone)]
+pub enum ArrayStorageMode {
+    Static,
+    Dynamic,
+}
+
 #[derive(Error, Debug)]
 pub enum VMError {
     #[error("Program out of bounds")]
@@ -42,6 +48,8 @@ pub struct VM {
 
     output_handler: OutputHandler,
     input_handler: InputHandler,
+
+    array_storage_mode: Option<ArrayStorageMode>,
 }
 
 impl VM {
@@ -63,6 +71,7 @@ impl VM {
             },
             output_handler,
             input_handler,
+            array_storage_mode: None,
         }
     }
 
@@ -258,6 +267,12 @@ impl VM {
                 Instruction::Halt => {
                     break;
                 }
+                Instruction::SetStatic => {
+                    self.array_storage_mode = Some(ArrayStorageMode::Static);
+                }
+                Instruction::SetDynamic => {
+                    self.array_storage_mode = Some(ArrayStorageMode::Dynamic);
+                }
             }
 
             self.pc += 1;
@@ -266,3 +281,4 @@ impl VM {
         return Ok(());
     }
 }
+

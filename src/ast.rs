@@ -46,6 +46,7 @@ impl TryFrom<Pair<'_, Rule>> for Program {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
+    Noop,
     Print(Expression),
     Assignment {
         variable: Variable,
@@ -55,6 +56,7 @@ pub enum Statement {
         prompt: Option<String>,
         variables: Vec<Variable>,
     },
+    Metacommand(Metacommand),
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -139,8 +141,21 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 }
                 Ok(Statement::Input { prompt, variables })
             }
+            Rule::comment => {
+                let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
+                // Pop the remark leader (REM or ')
+                let _ = elements.pop_front().ok_or(AstError::InvalidStatement(
+                    "Empty comment".to_string(),
+                ))?;
+                // Pop the metacommand if present, otherwise this is a noop
+                match elements.pop_front().map(|p| p.as_str()) {
+                    Some("$STATIC") => Ok(Statement::Metacommand(Metacommand::Static)),
+                    Some("$DYNAMIC") => Ok(Statement::Metacommand(Metacommand::Dynamic)),
+                    _ => Ok(Statement::Noop)
+                }
+            }
             _ => Err(AstError::InvalidStatement(format!(
-                "Expected print statement, got {:?}",
+                "Expected statement, got {:?}",
                 statement.as_rule()
             ))),
         }
@@ -221,9 +236,13 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
             Rule::number => {
                 let number = expr.as_str();
                 if number.contains('.') {
-                    Ok(Expression::Float(number.parse::<f64>().map_err(|e| AstError::InvalidExpression(format!("Invalid float: {e}")))?))
+                    Ok(Expression::Float(number.parse::<f64>().map_err(|e| {
+                        AstError::InvalidExpression(format!("Invalid float: {e}"))
+                    })?))
                 } else {
-                    Ok(Expression::Integer(number.parse::<i32>().map_err(|e| AstError::InvalidExpression(format!("Invalid integer: {e}")))?))
+                    Ok(Expression::Integer(number.parse::<i32>().map_err(|e| {
+                        AstError::InvalidExpression(format!("Invalid integer: {e}"))
+                    })?))
                 }
             }
             Rule::string => {
@@ -327,4 +346,10 @@ impl TryFrom<&str> for Variable {
             r#type: r#type.unwrap_or(VariableType::Integer),
         })
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Metacommand {
+    Dynamic,
+    Static,
 }

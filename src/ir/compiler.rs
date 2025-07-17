@@ -41,6 +41,13 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
             iter::once(ir::Instruction::Input(variables))
         )
         .collect(),
+        ast::Statement::Metacommand(metacommand) => {
+            match metacommand {
+                ast::Metacommand::Static => vec![ir::Instruction::SetStatic],
+                ast::Metacommand::Dynamic => vec![ir::Instruction::SetDynamic],
+            }
+        }
+        ast::Statement::Noop => vec![],
     }
 }
 

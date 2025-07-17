@@ -1,12 +1,14 @@
 WHITESPACE = _{ " " | "\t" }
-COMMENT = _{ "'" | "REM" ~ (!"\n" ~ ANY)* }
+//COMMENT = _{ ("'" | "REM") ~ metacommand? ~ (!"\n" ~ ANY)* ~ ("\n" | EOI) }
+comment = { remark_leader ~ metacommand? ~ (!"\n" ~ ANY)* }
 
-program = { SOI ~ ((statement ~ statement_separator) | "\n")* ~ EOI }
+program = { SOI ~ ((statement ~ comment? ~ statement_separator) | "\n")* ~ EOI }
 
 statement = {
     assignment_statement |
     print_statement |
-    input_statement 
+    input_statement |
+    comment
 }
 statement_separator = _{ "\n" | ":" | EOI }
 
@@ -17,6 +19,8 @@ input_statement = { "INPUT" ~ (string ~ (";" | ","))? ~ variable ~ ("," ~ variab
 expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
 factor = { number | string | variable | ("(" ~ expression ~ ")") }
+
+metacommand = { "$STATIC" | "$DYNAMIC" }
 
 number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? | "." ~ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
@@ -40,3 +44,5 @@ exponentiation_operator = { "^" }
 // Logic operators
 assignment_operator = { "=" }
 relational_operators = { "<" | "=" | ">" }
+
+remark_leader = { "'" | "REM" }

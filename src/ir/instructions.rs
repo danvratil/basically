@@ -18,6 +18,9 @@ pub enum Instruction {
 
     Print,
     Halt,
+
+    SetStatic,
+    SetDynamic,
 }
 
 #[derive(Debug, Clone)]
