@@ -4,6 +4,8 @@
 
 mod compiler;
 mod instructions;
+mod value;
 
 pub use compiler::compile;
 pub use instructions::{Instruction, Program};
+pub use value::Value;

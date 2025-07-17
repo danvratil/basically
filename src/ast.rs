@@ -104,6 +104,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
 #[derive(Debug, Clone)]
 pub enum Expression {
     Integer(i16), // QBasic integer types were 16-bit signed integers
+    String(String),
     BinaryOp {
         left: Box<Expression>,
         op: BinaryOperator,
@@ -173,6 +174,11 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
             Rule::number => Ok(Expression::Integer(expr.as_str().parse::<i16>().map_err(
                 |e| AstError::InvalidExpression(format!("Invalid integer: {e}")),
             )?)),
+            Rule::string => {
+                // Don't store the string with the quotes
+                let string = expr.as_str();
+                Ok(Expression::String(string[1..string.len() - 1].to_string()))
+            },
             _ => Err(AstError::InvalidExpression(format!(
                 "Expected integer, got {:?}",
                 expr.as_rule()

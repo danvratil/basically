@@ -17,14 +17,17 @@ pub enum VMError {
 
     #[error("Undefined variable: {0}")]
     UndefinedVariable(String),
+
+    #[error("Type mismatch: {0}, {1}")]
+    TypeMismatch(String, String),
 }
 
 pub struct VM {
-    stack: Vec<i16>,
+    stack: Vec<ir::Value>,
     pc: usize,
     instructions: Vec<ir::Instruction>,
 
-    variables: HashMap<String, i16>,
+    variables: HashMap<String, ir::Value>,
 
     output_handler: Box<dyn FnMut(String)>,
 }
@@ -48,12 +51,12 @@ impl VM {
 
             use ir::Instruction;
             match self.instructions[self.pc] {
-                Instruction::LoadConst(value) => {
-                    self.stack.push(value);
+                Instruction::LoadConst(ref value) => {
+                    self.stack.push(value.clone());
                 }
                 Instruction::LoadVar(ref variable) => {
                     if let Some(value) = self.variables.get(variable) {
-                        self.stack.push(*value);
+                        self.stack.push(value.clone());
                     } else {
                         return Err(VMError::UndefinedVariable(variable.clone()));
                     }
@@ -66,7 +69,10 @@ impl VM {
                 }
                 Instruction::Print => {
                     if let Some(value) = self.stack.pop() {
-                        (self.output_handler)(value.to_string());
+                        match value {
+                            ir::Value::Number(value) => (self.output_handler)(value.to_string()),
+                            ir::Value::String(value) => (self.output_handler)(value),
+                        }
                     } else {
                         return Err(VMError::StackUnderflow);
                     }
@@ -74,22 +80,45 @@ impl VM {
                 Instruction::Add => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    self.stack.push(a + b);
+                    match (&a, &b) {
+                        (ir::Value::Number(a), ir::Value::Number(b)) => {
+                            self.stack.push(ir::Value::Number(a + b));
+                        }
+                        (ir::Value::String(a), ir::Value::String(b)) => {
+                            self.stack.push(ir::Value::String(format!("{a}{b}")));
+                        }
+                        _ => return Err(VMError::TypeMismatch(a.type_name().to_string(), b.type_name().to_string())),
+                    }
                 }
                 Instruction::Subtract => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    self.stack.push(a - b);
+                    match (&a, &b) {
+                        (ir::Value::Number(a), ir::Value::Number(b)) => {
+                            self.stack.push(ir::Value::Number(a - b));
+                        }
+                        _ => return Err(VMError::TypeMismatch(a.type_name().to_string(), b.type_name().to_string())),
+                    }
                 }
                 Instruction::Multiply => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    self.stack.push(a * b);
+                    match (&a, &b) {
+                        (ir::Value::Number(a), ir::Value::Number(b)) => {
+                            self.stack.push(ir::Value::Number(a * b));
+                        }
+                        _ => return Err(VMError::TypeMismatch(a.type_name().to_string(), b.type_name().to_string())),
+                    }
                 }
                 Instruction::Divide => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    self.stack.push(a / b);
+                    match (&a, &b) {
+                        (ir::Value::Number(a), ir::Value::Number(b)) => {
+                            self.stack.push(ir::Value::Number(a / b));
+                        }
+                        _ => return Err(VMError::TypeMismatch(a.type_name().to_string(), b.type_name().to_string())),
+                    }
                 }
                 Instruction::Halt => {
                     break;

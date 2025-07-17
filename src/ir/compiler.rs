@@ -41,7 +41,10 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
 fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
     match expr {
         ast::Expression::Integer(value) => {
-            vec![ir::Instruction::LoadConst(value)]
+            vec![ir::Instruction::LoadConst(ir::Value::Number(value))]
+        },
+        ast::Expression::String(value) => {
+            vec![ir::Instruction::LoadConst(ir::Value::String(value))]
         },
         ast::Expression::BinaryOp { left, op, right } => {
             chain!(

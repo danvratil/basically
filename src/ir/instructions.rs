@@ -2,9 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
+use crate::ir::Value;
+
 #[derive(Debug, Clone)]
 pub enum Instruction {
-    LoadConst(i16),
+    LoadConst(Value),
     LoadVar(String),
     StoreVar(String),
 

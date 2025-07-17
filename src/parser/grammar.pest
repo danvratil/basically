@@ -14,11 +14,12 @@ print_statement = { "PRINT" ~ expression }
 
 expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
-factor = { number | variable | ("(" ~ expression ~ ")") }
-
-variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
+factor = { number | string | variable | ("(" ~ expression ~ ")") }
 
 number = @{ ASCII_DIGIT+ }
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
+
 
 // Date type suffixes
 single_precision_suffix = { "!" }
