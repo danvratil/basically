@@ -1,8 +1,8 @@
 # BASIC-ally
 
-QBasic interpreter written in Rust.
+QBasic 1.1 interpreter written in Rust.
 
-Why? Because I can. And because I live learning new things.
+Why? Because I can. And because I love learning new things.
 
 ## Project goal
 
