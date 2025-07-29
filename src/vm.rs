@@ -7,12 +7,10 @@ use std::collections::HashMap;
 mod arrays;
 
 use crate::{
-    InputHandler, OutputHandler,
-    ast,
-    ir,
+    InputHandler, OutputHandler, ast, ir,
     vm::arrays::{ArrayStorage, ArrayStorageMode},
 };
-use enum_map::{enum_map, Enum, EnumMap};
+use enum_map::{Enum, EnumMap, enum_map};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -118,7 +116,7 @@ impl VM {
     }
 
     /// Check if two values are equal, with type coercion
-    fn values_equal(&self, a: &ir::Value, b: &ir::Value) -> Result<bool, VMError> {
+    fn values_equal(a: &ir::Value, b: &ir::Value) -> Result<bool, VMError> {
         match (a, b) {
             // Same types - direct comparison
             (ir::Value::Integer(a), ir::Value::Integer(b)) => Ok(a == b),
@@ -145,54 +143,94 @@ impl VM {
             // Boolean with numeric
             (ir::Value::Boolean(a), b) => {
                 let a_val = if *a { -1i16 } else { 0i16 }; // QBasic true = -1
-                self.values_equal(&ir::Value::Integer(a_val), b)
+                Self::values_equal(&ir::Value::Integer(a_val), b)
             }
             (a, ir::Value::Boolean(b)) => {
                 let b_val = if *b { -1i16 } else { 0i16 }; // QBasic true = -1
-                self.values_equal(a, &ir::Value::Integer(b_val))
+                Self::values_equal(a, &ir::Value::Integer(b_val))
             }
 
             // Type mismatch
-            _ => Err(VMError::TypeMismatch(a.type_name().to_string(), b.type_name().to_string())),
+            _ => Err(VMError::TypeMismatch(
+                a.type_name().to_string(),
+                b.type_name().to_string(),
+            )),
         }
     }
 
     /// Compare two values, returning -1 if a < b, 0 if a == b, 1 if a > b
-    fn compare_values(&self, a: &ir::Value, b: &ir::Value) -> Result<i32, VMError> {
+    fn compare_values(a: &ir::Value, b: &ir::Value) -> Result<i32, VMError> {
         match (a, b) {
             // Same types - direct comparison
             (ir::Value::Integer(a), ir::Value::Integer(b)) => Ok(a.cmp(b) as i32),
             (ir::Value::Long(a), ir::Value::Long(b)) => Ok(a.cmp(b) as i32),
-            (ir::Value::SinglePrecision(a), ir::Value::SinglePrecision(b)) => Ok(a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::DoublePrecision(a), ir::Value::DoublePrecision(b)) => Ok(a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
+            (ir::Value::SinglePrecision(a), ir::Value::SinglePrecision(b)) => {
+                Ok(a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
+            (ir::Value::DoublePrecision(a), ir::Value::DoublePrecision(b)) => {
+                Ok(a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
             (ir::Value::String(a), ir::Value::String(b)) => Ok(a.cmp(b) as i32),
 
             // Numeric type coercion - convert to common type and compare
             (ir::Value::Integer(a), ir::Value::Long(b)) => Ok((*a as i32).cmp(b) as i32),
             (ir::Value::Long(a), ir::Value::Integer(b)) => Ok(a.cmp(&(*b as i32)) as i32),
-            (ir::Value::Integer(a), ir::Value::SinglePrecision(b)) => Ok((*a as f32).partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::SinglePrecision(a), ir::Value::Integer(b)) => Ok(a.partial_cmp(&(*b as f32)).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::Integer(a), ir::Value::DoublePrecision(b)) => Ok((*a as f64).partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::DoublePrecision(a), ir::Value::Integer(b)) => Ok(a.partial_cmp(&(*b as f64)).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::Long(a), ir::Value::SinglePrecision(b)) => Ok((*a as f32).partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::SinglePrecision(a), ir::Value::Long(b)) => Ok(a.partial_cmp(&(*b as f32)).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::Long(a), ir::Value::DoublePrecision(b)) => Ok((*a as f64).partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::DoublePrecision(a), ir::Value::Long(b)) => Ok(a.partial_cmp(&(*b as f64)).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::SinglePrecision(a), ir::Value::DoublePrecision(b)) => Ok((*a as f64).partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) as i32),
-            (ir::Value::DoublePrecision(a), ir::Value::SinglePrecision(b)) => Ok(a.partial_cmp(&(*b as f64)).unwrap_or(std::cmp::Ordering::Equal) as i32),
+            (ir::Value::Integer(a), ir::Value::SinglePrecision(b)) => Ok((*a as f32)
+                .partial_cmp(b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                as i32),
+            (ir::Value::SinglePrecision(a), ir::Value::Integer(b)) => {
+                Ok(a.partial_cmp(&(*b as f32))
+                    .unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
+            (ir::Value::Integer(a), ir::Value::DoublePrecision(b)) => Ok((*a as f64)
+                .partial_cmp(b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                as i32),
+            (ir::Value::DoublePrecision(a), ir::Value::Integer(b)) => {
+                Ok(a.partial_cmp(&(*b as f64))
+                    .unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
+            (ir::Value::Long(a), ir::Value::SinglePrecision(b)) => Ok((*a as f32)
+                .partial_cmp(b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                as i32),
+            (ir::Value::SinglePrecision(a), ir::Value::Long(b)) => {
+                Ok(a.partial_cmp(&(*b as f32))
+                    .unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
+            (ir::Value::Long(a), ir::Value::DoublePrecision(b)) => Ok((*a as f64)
+                .partial_cmp(b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                as i32),
+            (ir::Value::DoublePrecision(a), ir::Value::Long(b)) => {
+                Ok(a.partial_cmp(&(*b as f64))
+                    .unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
+            (ir::Value::SinglePrecision(a), ir::Value::DoublePrecision(b)) => Ok((*a as f64)
+                .partial_cmp(b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                as i32),
+            (ir::Value::DoublePrecision(a), ir::Value::SinglePrecision(b)) => {
+                Ok(a.partial_cmp(&(*b as f64))
+                    .unwrap_or(std::cmp::Ordering::Equal) as i32)
+            }
 
             // Boolean comparison - convert to QBasic integers first
             (ir::Value::Boolean(a), b) => {
                 let a_val = if *a { -1i16 } else { 0i16 };
-                self.compare_values(&ir::Value::Integer(a_val), b)
+                Self::compare_values(&ir::Value::Integer(a_val), b)
             }
             (a, ir::Value::Boolean(b)) => {
                 let b_val = if *b { -1i16 } else { 0i16 };
-                self.compare_values(a, &ir::Value::Integer(b_val))
+                Self::compare_values(a, &ir::Value::Integer(b_val))
             }
 
             // Type mismatch
-            _ => Err(VMError::TypeMismatch(a.type_name().to_string(), b.type_name().to_string())),
+            _ => Err(VMError::TypeMismatch(
+                a.type_name().to_string(),
+                b.type_name().to_string(),
+            )),
         }
     }
 
@@ -208,7 +246,7 @@ impl VM {
                     self.stack.push(value.clone());
                 }
                 Instruction::LoadVar(variable) => {
-                    if let Some(value) = self.load_variable(&variable) {
+                    if let Some(value) = self.load_variable(variable) {
                         self.stack.push(value.clone());
                     } else {
                         return Err(VMError::UndefinedVariable(variable.name.clone()));
@@ -220,7 +258,7 @@ impl VM {
                         ast::VariableType::Integer => match value {
                             ir::Value::Integer(value) => ir::Value::Integer(value),
                             ir::Value::Long(value) => {
-                                ir::Value::Long(value.try_into().map_err(|_| VMError::Overflow)?)
+                                ir::Value::Integer(value.try_into().map_err(|_| VMError::Overflow)?)
                             }
                             ir::Value::SinglePrecision(value) => ir::Value::Integer(
                                 (value.round_ties_even() as i32)
@@ -244,15 +282,11 @@ impl VM {
                             }
                         },
                         ast::VariableType::Long => match value {
-                            ir::Value::Integer(value) => {
-                                ir::Value::Long(value.try_into().map_err(|_| VMError::Overflow)?)
-                            }
+                            ir::Value::Integer(value) => ir::Value::Long(value.into()),
                             ir::Value::Long(value) => ir::Value::Long(value),
-                            ir::Value::SinglePrecision(value) => ir::Value::Long(
-                                (value.round_ties_even() as i32)
-                                    .try_into()
-                                    .map_err(|_| VMError::Overflow)?,
-                            ),
+                            ir::Value::SinglePrecision(value) => {
+                                ir::Value::Long(value.round_ties_even() as i32)
+                            }
                             ir::Value::DoublePrecision(value) => ir::Value::Long(
                                 (value.round_ties_even() as i64)
                                     .try_into()
@@ -269,9 +303,7 @@ impl VM {
                             }
                         },
                         ast::VariableType::SinglePrecision => match value {
-                            ir::Value::Integer(value) => ir::Value::SinglePrecision(
-                                value.try_into().map_err(|_| VMError::Overflow)?,
-                            ),
+                            ir::Value::Integer(value) => ir::Value::SinglePrecision(value.into()),
                             ir::Value::Long(value) => ir::Value::SinglePrecision(value as f32),
                             ir::Value::SinglePrecision(value) => ir::Value::SinglePrecision(value),
                             ir::Value::DoublePrecision(value) => ir::Value::SinglePrecision(
@@ -293,15 +325,11 @@ impl VM {
                             }
                         },
                         ast::VariableType::DoublePrecision => match value {
-                            ir::Value::Integer(value) => ir::Value::DoublePrecision(
-                                value.try_into().map_err(|_| VMError::Overflow)?,
-                            ),
-                            ir::Value::Long(value) => ir::Value::DoublePrecision(
-                                value.try_into().map_err(|_| VMError::Overflow)?,
-                            ),
-                            ir::Value::SinglePrecision(value) => ir::Value::DoublePrecision(
-                                value.try_into().map_err(|_| VMError::Overflow)?,
-                            ),
+                            ir::Value::Integer(value) => ir::Value::DoublePrecision(value.into()),
+                            ir::Value::Long(value) => ir::Value::DoublePrecision(value.into()),
+                            ir::Value::SinglePrecision(value) => {
+                                ir::Value::DoublePrecision(value.into())
+                            }
                             ir::Value::DoublePrecision(value) => ir::Value::DoublePrecision(value),
                             ir::Value::Boolean(value) => {
                                 ir::Value::DoublePrecision(if value { -1.0 } else { 0.0 })
@@ -323,7 +351,8 @@ impl VM {
                             }
                         },
                     };
-                    self.variables_by_type[(&value.as_variable_type()).into()].insert(variable.name.clone(), value);
+                    self.variables_by_type[(&value.as_variable_type()).into()]
+                        .insert(variable.name.clone(), value);
                 }
                 Instruction::Print => {
                     if let Some(value) = self.stack.pop() {
@@ -339,7 +368,11 @@ impl VM {
                             ir::Value::String(value) => (self.output_handler)(value),
                             ir::Value::Boolean(value) => {
                                 // QBasic prints true as -1, false as 0
-                                (self.output_handler)(if value { "-1".to_string() } else { "0".to_string() })
+                                (self.output_handler)(if value {
+                                    "-1".to_string()
+                                } else {
+                                    "0".to_string()
+                                })
                             }
                             ir::Value::Null => {
                                 return Err(VMError::TypeMismatch(
@@ -443,7 +476,7 @@ impl VM {
 
                     let a_bool = self.value_to_bool(&a)?;
                     let b_bool = self.value_to_bool(&b)?;
-                    
+
                     // QBasic AND: both must be true
                     self.stack.push(ir::Value::Boolean(a_bool && b_bool));
                 }
@@ -453,14 +486,14 @@ impl VM {
 
                     let a_bool = self.value_to_bool(&a)?;
                     let b_bool = self.value_to_bool(&b)?;
-                    
+
                     // QBasic OR: at least one must be true
                     self.stack.push(ir::Value::Boolean(a_bool || b_bool));
                 }
                 Instruction::Not => {
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a_bool = self.value_to_bool(&a)?;
-                    
+
                     // QBasic NOT: logical negation
                     self.stack.push(ir::Value::Boolean(!a_bool));
                 }
@@ -468,37 +501,43 @@ impl VM {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
 
-                    self.stack.push(ir::Value::Boolean(self.values_equal(&a, &b)?));
+                    self.stack
+                        .push(ir::Value::Boolean(Self::values_equal(&a, &b)?));
                 }
                 Instruction::NotEqual => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
 
-                    self.stack.push(ir::Value::Boolean(!self.values_equal(&a, &b)?));
+                    self.stack
+                        .push(ir::Value::Boolean(!Self::values_equal(&a, &b)?));
                 }
                 Instruction::LessThan => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
 
-                    self.stack.push(ir::Value::Boolean(self.compare_values(&a, &b)? < 0));
+                    self.stack
+                        .push(ir::Value::Boolean(Self::compare_values(&a, &b)? < 0));
                 }
                 Instruction::LessThanEqual => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
 
-                    self.stack.push(ir::Value::Boolean(self.compare_values(&a, &b)? <= 0));
+                    self.stack
+                        .push(ir::Value::Boolean(Self::compare_values(&a, &b)? <= 0));
                 }
                 Instruction::GreaterThan => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
 
-                    self.stack.push(ir::Value::Boolean(self.compare_values(&a, &b)? > 0));
+                    self.stack
+                        .push(ir::Value::Boolean(Self::compare_values(&a, &b)? > 0));
                 }
                 Instruction::GreaterThanEqual => {
                     let b = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let a = self.stack.pop().ok_or(VMError::StackUnderflow)?;
 
-                    self.stack.push(ir::Value::Boolean(self.compare_values(&a, &b)? >= 0));
+                    self.stack
+                        .push(ir::Value::Boolean(Self::compare_values(&a, &b)? >= 0));
                 }
                 Instruction::Jump(target) => {
                     self.pc = *target;
@@ -507,7 +546,7 @@ impl VM {
                 Instruction::JumpIfFalse(target) => {
                     let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let condition_bool = self.value_to_bool(&condition)?;
-                    
+
                     if !condition_bool {
                         self.pc = *target;
                         continue; // Skip the normal pc increment
@@ -516,7 +555,7 @@ impl VM {
                 Instruction::JumpIfTrue(target) => {
                     let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     let condition_bool = self.value_to_bool(&condition)?;
-                    
+
                     if condition_bool {
                         self.pc = *target;
                         continue; // Skip the normal pc increment
@@ -551,43 +590,48 @@ impl VM {
                         let index = match index_value {
                             ir::Value::Integer(i) => i as isize,
                             ir::Value::Long(i) => i as isize,
-                            _ => return Err(VMError::TypeMismatch(
-                                index_value.type_name().to_string(),
-                                "integer".to_string(),
-                            )),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    index_value.type_name().to_string(),
+                                    "integer".to_string(),
+                                ));
+                            }
                         };
                         indices.push(index);
                     }
                     indices.reverse(); // Stack is LIFO, but we want first-to-last index order
-                    
+
                     let value = self.array_storage.get_array_element(name, &indices)?;
                     self.stack.push(value.clone());
                 }
                 Instruction::StoreArrayElement { name, num_indices } => {
                     let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                    
+
                     let mut indices = Vec::with_capacity(*num_indices);
                     for _ in 0..*num_indices {
                         let index_value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let index = match index_value {
                             ir::Value::Integer(i) => i as isize,
                             ir::Value::Long(i) => i as isize,
-                            _ => return Err(VMError::TypeMismatch(
-                                index_value.type_name().to_string(),
-                                "integer".to_string(),
-                            )),
+                            _ => {
+                                return Err(VMError::TypeMismatch(
+                                    index_value.type_name().to_string(),
+                                    "integer".to_string(),
+                                ));
+                            }
                         };
                         indices.push(index);
                     }
                     indices.reverse(); // Stack is LIFO, but we want first-to-last index order
-                    
-                    self.array_storage.set_array_element(name, &indices, value)?;
+
+                    self.array_storage
+                        .set_array_element(name, &indices, value)?;
                 }
             }
 
             self.pc += 1;
         }
 
-        return Ok(());
+        Ok(())
     }
 }

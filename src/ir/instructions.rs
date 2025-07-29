@@ -29,7 +29,7 @@ pub enum Instruction {
     Subtract,
     Multiply,
     Divide,
-    
+
     // Unary operations
     UnaryPlus,
     UnaryMinus,
@@ -48,9 +48,9 @@ pub enum Instruction {
     GreaterThanEqual,
 
     // Control flow instructions
-    Jump(usize),              // Unconditional jump to instruction index
-    JumpIfFalse(usize),       // Jump if top of stack is false
-    JumpIfTrue(usize),        // Jump if top of stack is true
+    Jump(usize),        // Unconditional jump to instruction index
+    JumpIfFalse(usize), // Jump if top of stack is false
+    JumpIfTrue(usize),  // Jump if top of stack is true
 
     Print,
     Halt,

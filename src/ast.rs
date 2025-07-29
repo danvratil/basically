@@ -118,29 +118,30 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         "Invalid assignment statement".to_string(),
                     ));
                 }
-                
-                let first_element = elements
-                    .pop_front()
-                    .ok_or(AstError::InvalidStatement(
-                        "Empty assignment target".to_string(),
-                    ))?;
-                
+
+                let first_element = elements.pop_front().ok_or(AstError::InvalidStatement(
+                    "Empty assignment target".to_string(),
+                ))?;
+
                 let target = match first_element.as_rule() {
-                    Rule::variable => AssignmentTarget::Variable(Variable::try_from(first_element)?),
-                    Rule::array_access => AssignmentTarget::ArrayElement(ArrayAccess::try_from(first_element)?),
-                    _ => return Err(AstError::InvalidStatement(
-                        "Invalid assignment target".to_string(),
-                    )),
+                    Rule::variable => {
+                        AssignmentTarget::Variable(Variable::try_from(first_element)?)
+                    }
+                    Rule::array_access => {
+                        AssignmentTarget::ArrayElement(ArrayAccess::try_from(first_element)?)
+                    }
+                    _ => {
+                        return Err(AstError::InvalidStatement(
+                            "Invalid assignment target".to_string(),
+                        ));
+                    }
                 };
-                
+
                 elements.pop_front(); // pop the assignment operator
                 let expression = Expression::try_from(elements.pop_front().ok_or(
                     AstError::InvalidStatement("Empty assignment expression".to_string()),
                 )?)?;
-                Ok(Statement::Assignment {
-                    target,
-                    expression,
-                })
+                Ok(Statement::Assignment { target, expression })
             }
             Rule::input_statement => {
                 let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
@@ -161,8 +162,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     Expression::Variable(v) => variables.push(v),
                     _ => {
                         return Err(AstError::InvalidStatement(format!(
-                            "Invalid input expression: {:?}",
-                            first_expr
+                            "Invalid input expression: {first_expr:?}"
                         )));
                     }
                 }
@@ -175,8 +175,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         variables.push(v);
                     } else {
                         return Err(AstError::InvalidStatement(format!(
-                            "Invalid input expression: {:?}",
-                            expr
+                            "Invalid input expression: {expr:?}"
                         )));
                     }
                 }
@@ -197,7 +196,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
             }
             Rule::dim_statement => {
                 let mut elements = statement.into_inner();
-                
+
                 // Skip optional SHARED keyword
                 let mut current = elements.next().ok_or(AstError::InvalidStatement(
                     "Empty dim statement".to_string(),
@@ -207,21 +206,22 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         "Missing variable name in dim statement".to_string(),
                     ))?;
                 }
-                
+
                 // Get variable name
                 let name = current.as_str().to_string();
-                
+
                 // Parse array subscripts if present
                 let mut dimensions = Vec::new();
                 if let Some(subscripts_pair) = elements.next() {
                     if subscripts_pair.as_rule() == Rule::array_subscripts {
                         for subscript_pair in subscripts_pair.into_inner() {
                             let mut subscript_elements = subscript_pair.into_inner();
-                            
-                            let first_expr = Expression::try_from(subscript_elements.next().ok_or(
-                                AstError::InvalidStatement("Empty array subscript".to_string()),
-                            )?)?;
-                            
+
+                            let first_expr =
+                                Expression::try_from(subscript_elements.next().ok_or(
+                                    AstError::InvalidStatement("Empty array subscript".to_string()),
+                                )?)?;
+
                             // Check if this is a "TO" expression or just an upper bound
                             if let Some(second_expr) = subscript_elements.next() {
                                 // This is "lower TO upper" format
@@ -239,7 +239,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         }
                     }
                 }
-                
+
                 // Parse type specifier if present
                 let element_type = if let Some(type_pair) = elements.next() {
                     if type_pair.as_rule() == Rule::type_specifier {
@@ -257,7 +257,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 } else {
                     VariableType::Integer // Default
                 };
-                
+
                 Ok(Statement::Dim(ArrayDeclaration {
                     name,
                     element_type,
@@ -268,43 +268,43 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 let elements = statement.into_inner().collect::<Vec<_>>();
                 let mut branches = Vec::new();
                 let mut i = 0;
-                
+
                 // Parse IF branch: condition + statement_list
                 if i + 1 < elements.len() {
                     let condition = Expression::try_from(elements[i].clone())?;
                     i += 1;
                     let statements = parse_statement_list(elements[i].clone())?;
                     i += 1;
-                    
+
                     branches.push(IfBranch {
                         condition: Some(condition),
                         statements,
                     });
                 }
-                
+
                 // Parse ELSEIF branches: pairs of (condition, statement_list)
                 while i + 1 < elements.len() {
                     let condition = Expression::try_from(elements[i].clone())?;
                     i += 1;
                     let statements = parse_statement_list(elements[i].clone())?;
                     i += 1;
-                    
+
                     branches.push(IfBranch {
                         condition: Some(condition),
                         statements,
                     });
                 }
-                
+
                 // Parse ELSE branch: remaining statement_list (if any)
                 if i < elements.len() {
                     let statements = parse_statement_list(elements[i].clone())?;
-                    
+
                     branches.push(IfBranch {
                         condition: None,
                         statements,
                     });
                 }
-                
+
                 Ok(Statement::If { branches })
             }
             _ => Err(AstError::InvalidStatement(format!(
@@ -359,7 +359,9 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
 
                 if elements.is_empty() {
-                    return Err(AstError::InvalidExpression("Empty logical expression".to_string()));
+                    return Err(AstError::InvalidExpression(
+                        "Empty logical expression".to_string(),
+                    ));
                 }
 
                 // Start with the first logical term
@@ -383,7 +385,9 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
 
                 if elements.is_empty() {
-                    return Err(AstError::InvalidExpression("Empty logical term".to_string()));
+                    return Err(AstError::InvalidExpression(
+                        "Empty logical term".to_string(),
+                    ));
                 }
 
                 // Start with the first logical factor
@@ -407,14 +411,18 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
 
                 if elements.is_empty() {
-                    return Err(AstError::InvalidExpression("Empty logical factor".to_string()));
+                    return Err(AstError::InvalidExpression(
+                        "Empty logical factor".to_string(),
+                    ));
                 }
 
                 // Check if this starts with NOT
                 let first = &elements[0];
                 if first.as_rule() == Rule::not_operator {
                     if elements.len() < 2 {
-                        return Err(AstError::InvalidExpression("NOT operator without operand".to_string()));
+                        return Err(AstError::InvalidExpression(
+                            "NOT operator without operand".to_string(),
+                        ));
                     }
                     let op = LogicalOperator::try_from(elements.remove(0))?;
                     let operand = Expression::try_from(elements.remove(0))?;
@@ -432,7 +440,9 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
 
                 if elements.is_empty() {
-                    return Err(AstError::InvalidExpression("Empty relational expression".to_string()));
+                    return Err(AstError::InvalidExpression(
+                        "Empty relational expression".to_string(),
+                    ));
                 }
 
                 // If there's only one element, it's just an expression
@@ -442,7 +452,9 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
 
                 // Otherwise, it's left relational_operator right
                 if elements.len() != 3 {
-                    return Err(AstError::InvalidExpression("Invalid relational expression format".to_string()));
+                    return Err(AstError::InvalidExpression(
+                        "Invalid relational expression format".to_string(),
+                    ));
                 }
 
                 let left = Expression::try_from(elements.remove(0))?;
@@ -506,11 +518,11 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
             Rule::variable => Ok(Expression::Variable(Variable::try_from(expr)?)),
             Rule::factor => {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
-                
+
                 if elements.is_empty() {
                     return Err(AstError::InvalidExpression("Empty factor".to_string()));
                 }
-                
+
                 // Check if there's a unary operator
                 if elements.len() == 2 {
                     let op = UnaryOperator::try_from(elements.remove(0))?;
@@ -528,9 +540,7 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
                 let mut inner = expr.clone().into_inner();
                 Ok(Expression::try_from(inner.next().unwrap())?)
             }
-            Rule::array_access => {
-                Ok(Expression::ArrayAccess(ArrayAccess::try_from(expr)?))
-            }
+            Rule::array_access => Ok(Expression::ArrayAccess(ArrayAccess::try_from(expr)?)),
             Rule::number => {
                 let number = expr.as_str();
                 if number.contains('.') {
@@ -597,8 +607,7 @@ impl TryFrom<Pair<'_, Rule>> for BinaryOperator {
             Rule::multiplication_operator => Ok(BinaryOperator::Multiply),
             Rule::division_operator => Ok(BinaryOperator::Divide),
             _ => Err(AstError::InvalidExpression(format!(
-                "Invalid binary operator: {:?}",
-                op
+                "Invalid binary operator: {op:?}"
             ))),
         }
     }
@@ -609,19 +618,16 @@ impl TryFrom<Pair<'_, Rule>> for UnaryOperator {
 
     fn try_from(op: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         match op.as_rule() {
-            Rule::unary_operator => {
-                match op.as_str() {
-                    "+" => Ok(UnaryOperator::Plus),
-                    "-" => Ok(UnaryOperator::Minus),
-                    _ => Err(AstError::InvalidExpression(format!(
-                        "Invalid unary operator: {}",
-                        op.as_str()
-                    ))),
-                }
-            }
+            Rule::unary_operator => match op.as_str() {
+                "+" => Ok(UnaryOperator::Plus),
+                "-" => Ok(UnaryOperator::Minus),
+                _ => Err(AstError::InvalidExpression(format!(
+                    "Invalid unary operator: {}",
+                    op.as_str()
+                ))),
+            },
             _ => Err(AstError::InvalidExpression(format!(
-                "Invalid unary operator rule: {:?}",
-                op
+                "Invalid unary operator rule: {op:?}"
             ))),
         }
     }
@@ -636,8 +642,7 @@ impl TryFrom<Pair<'_, Rule>> for LogicalOperator {
             Rule::or_operator => Ok(LogicalOperator::Or),
             Rule::not_operator => Ok(LogicalOperator::Not),
             _ => Err(AstError::InvalidExpression(format!(
-                "Invalid logical operator: {:?}",
-                op
+                "Invalid logical operator: {op:?}"
             ))),
         }
     }
@@ -648,23 +653,20 @@ impl TryFrom<Pair<'_, Rule>> for RelationalOperator {
 
     fn try_from(op: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         match op.as_rule() {
-            Rule::relational_operator => {
-                match op.as_str() {
-                    "=" => Ok(RelationalOperator::Equal),
-                    "<>" => Ok(RelationalOperator::NotEqual),
-                    "<" => Ok(RelationalOperator::LessThan),
-                    "<=" => Ok(RelationalOperator::LessThanEqual),
-                    ">" => Ok(RelationalOperator::GreaterThan),
-                    ">=" => Ok(RelationalOperator::GreaterThanEqual),
-                    _ => Err(AstError::InvalidExpression(format!(
-                        "Invalid relational operator: {}",
-                        op.as_str()
-                    ))),
-                }
-            }
+            Rule::relational_operator => match op.as_str() {
+                "=" => Ok(RelationalOperator::Equal),
+                "<>" => Ok(RelationalOperator::NotEqual),
+                "<" => Ok(RelationalOperator::LessThan),
+                "<=" => Ok(RelationalOperator::LessThanEqual),
+                ">" => Ok(RelationalOperator::GreaterThan),
+                ">=" => Ok(RelationalOperator::GreaterThanEqual),
+                _ => Err(AstError::InvalidExpression(format!(
+                    "Invalid relational operator: {}",
+                    op.as_str()
+                ))),
+            },
             _ => Err(AstError::InvalidExpression(format!(
-                "Invalid relational operator rule: {:?}",
-                op
+                "Invalid relational operator rule: {op:?}"
             ))),
         }
     }
@@ -697,17 +699,22 @@ impl TryFrom<Pair<'_, Rule>> for ArrayAccess {
         match value.as_rule() {
             Rule::array_access => {
                 let full_text = value.as_str();
-                
+
                 // Extract array name from the full text (everything before the opening parenthesis)
-                let name = full_text.split('(').next()
-                    .ok_or(AstError::InvalidExpression("Invalid array access format".to_string()))?
+                let name = full_text
+                    .split('(')
+                    .next()
+                    .ok_or(AstError::InvalidExpression(
+                        "Invalid array access format".to_string(),
+                    ))?
                     .to_string();
-                
+
                 // Get index expressions from the inner elements
-                let indices = value.into_inner()
+                let indices = value
+                    .into_inner()
                     .map(Expression::try_from)
                     .collect::<Result<Vec<_>, _>>()?;
-                
+
                 Ok(ArrayAccess { name, indices })
             }
             _ => Err(AstError::InvalidExpression(format!(
@@ -723,7 +730,7 @@ impl TryFrom<Pair<'_, Rule>> for Variable {
 
     fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         let full_text = value.as_str();
-        
+
         if full_text.is_empty() {
             return Err(AstError::InvalidStatement(
                 "Variable name cannot be empty".to_string(),
@@ -737,16 +744,16 @@ impl TryFrom<Pair<'_, Rule>> for Variable {
         }
 
         // Parse the variable name and type suffix
-        let (name, r#type) = if full_text.ends_with('!') {
-            (full_text[..full_text.len()-1].to_string(), VariableType::SinglePrecision)
-        } else if full_text.ends_with('#') {
-            (full_text[..full_text.len()-1].to_string(), VariableType::DoublePrecision)
-        } else if full_text.ends_with('$') {
-            (full_text[..full_text.len()-1].to_string(), VariableType::String)
-        } else if full_text.ends_with('%') {
-            (full_text[..full_text.len()-1].to_string(), VariableType::Integer)
-        } else if full_text.ends_with('&') {
-            (full_text[..full_text.len()-1].to_string(), VariableType::Long)
+        let (name, r#type) = if let Some(stripped) = full_text.strip_suffix('!') {
+            (stripped.to_string(), VariableType::SinglePrecision)
+        } else if let Some(stripped) = full_text.strip_suffix('#') {
+            (stripped.to_string(), VariableType::DoublePrecision)
+        } else if let Some(stripped) = full_text.strip_suffix('$') {
+            (stripped.to_string(), VariableType::String)
+        } else if let Some(stripped) = full_text.strip_suffix('%') {
+            (stripped.to_string(), VariableType::Integer)
+        } else if let Some(stripped) = full_text.strip_suffix('&') {
+            (stripped.to_string(), VariableType::Long)
         } else {
             (full_text.to_string(), VariableType::Integer) // Default type
         };

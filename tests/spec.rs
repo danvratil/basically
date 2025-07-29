@@ -23,11 +23,11 @@ use yare::parameterized;
     basic_if = { "basic_if" },
 )]
 fn test_run_program(name: &str) {
-    let input = read_to_string(format!("tests/test-resources/{}.bas", name)).unwrap();
-    let expected_output = read_to_string(format!("tests/test-resources/{}.txt", name)).unwrap();
-    let mut expected_input = if Path::new(&format!("tests/test-resources/{}.in", name)).exists() {
+    let input = read_to_string(format!("tests/test-resources/{name}.bas")).unwrap();
+    let expected_output = read_to_string(format!("tests/test-resources/{name}.txt")).unwrap();
+    let mut expected_input = if Path::new(&format!("tests/test-resources/{name}.in")).exists() {
         Some(
-            read_to_string(format!("tests/test-resources/{}.in", name))
+            read_to_string(format!("tests/test-resources/{name}.in"))
                 .unwrap()
                 .lines()
                 .map(|l| l.to_string())
@@ -39,10 +39,10 @@ fn test_run_program(name: &str) {
 
     let output = Rc::new(RefCell::new(String::new()));
     let output_clone = Rc::clone(&output);
-    let basically = BasicallyBuilder::new()
+    let basically = BasicallyBuilder::default()
         .output_handler(move |s: String| {
             output_clone.borrow_mut().push_str(&s);
-            output_clone.borrow_mut().push_str("\n");
+            output_clone.borrow_mut().push('\n');
         })
         .input_handler(move || match expected_input {
             Some(ref mut input) => input.pop_front().unwrap_or_default(),

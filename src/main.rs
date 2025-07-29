@@ -26,10 +26,12 @@ fn print_pair(pair: &Pair<Rule>, indent: usize) {
 
 fn main() {
     let mut input = String::new();
-    io::stdin().read_to_string(&mut input).expect("Failed to read from stdin");
-    
+    io::stdin()
+        .read_to_string(&mut input)
+        .expect("Failed to read from stdin");
+
     println!("=== PROGRAM ====");
-    println!("{}", input);
+    println!("{input}");
 
     println!("\n=== PARSER ===");
 
@@ -42,12 +44,12 @@ fn main() {
 
     let program =
         Program::try_from(pairs.next().expect("Empty program")).expect("Failed to get program");
-    println!("{:?}", program);
+    println!("{program:?}");
 
     println!("\n=== IR ===");
 
     let ir_program = ir::compile(program);
-    println!("{:?}", ir_program);
+    println!("{ir_program:?}");
 
     println!("\n=== Executing ===");
     let mut vm = VM::new(
