@@ -500,6 +500,28 @@ impl VM {
 
                     self.stack.push(ir::Value::Boolean(self.compare_values(&a, &b)? >= 0));
                 }
+                Instruction::Jump(target) => {
+                    self.pc = *target;
+                    continue; // Skip the normal pc increment
+                }
+                Instruction::JumpIfFalse(target) => {
+                    let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let condition_bool = self.value_to_bool(&condition)?;
+                    
+                    if !condition_bool {
+                        self.pc = *target;
+                        continue; // Skip the normal pc increment
+                    }
+                }
+                Instruction::JumpIfTrue(target) => {
+                    let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                    let condition_bool = self.value_to_bool(&condition)?;
+                    
+                    if condition_bool {
+                        self.pc = *target;
+                        continue; // Skip the normal pc increment
+                    }
+                }
                 Instruction::Halt => {
                     break;
                 }

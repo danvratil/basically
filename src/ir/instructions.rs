@@ -47,6 +47,11 @@ pub enum Instruction {
     GreaterThan,
     GreaterThanEqual,
 
+    // Control flow instructions
+    Jump(usize),              // Unconditional jump to instruction index
+    JumpIfFalse(usize),       // Jump if top of stack is false
+    JumpIfTrue(usize),        // Jump if top of stack is true
+
     Print,
     Halt,
 

@@ -69,6 +69,12 @@ pub enum AssignmentTarget {
 }
 
 #[derive(Debug, Clone)]
+pub struct IfBranch {
+    pub condition: Option<Expression>, // None for ELSE branch
+    pub statements: Vec<Statement>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Noop,
     Print(Expression),
@@ -82,6 +88,9 @@ pub enum Statement {
     },
     Metacommand(Metacommand),
     Dim(ArrayDeclaration),
+    If {
+        branches: Vec<IfBranch>, // First is IF, middle are ELSEIF, last might be ELSE
+    },
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -255,12 +264,55 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     dimensions,
                 }))
             }
+            Rule::if_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+                let mut branches = Vec::new();
+                let mut i = 0;
+                
+                // Parse IF branch: condition + statement_list
+                if i < elements.len() {
+                    let condition = Expression::try_from(elements[i].clone())?;
+                    i += 1;
+                    
+                    if i < elements.len() {
+                        let statements = parse_statement_list(elements[i].clone())?;
+                        i += 1;
+                        
+                        branches.push(IfBranch {
+                            condition: Some(condition),
+                            statements,
+                        });
+                    }
+                }
+                
+                // Parse remaining statement_lists (these are ELSEIF or ELSE branches)
+                // For now, treat all remaining statement_lists as ELSE branches
+                // TODO: This is a simplification - we need to update grammar to handle ELSEIF properly
+                while i < elements.len() {
+                    let statements = parse_statement_list(elements[i].clone())?;
+                    i += 1;
+                    
+                    branches.push(IfBranch {
+                        condition: None, // Treat as ELSE for now
+                        statements,
+                    });
+                }
+                
+                Ok(Statement::If { branches })
+            }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected statement, got {:?}",
                 statement.as_rule()
             ))),
         }
     }
+}
+
+fn parse_statement_list(statement_list: Pair<'_, Rule>) -> Result<Vec<Statement>, AstError> {
+    statement_list
+        .into_inner()
+        .map(Statement::try_from)
+        .collect::<Result<Vec<_>, _>>()
 }
 
 #[derive(Debug, Clone)]

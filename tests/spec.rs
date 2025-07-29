@@ -19,7 +19,8 @@ use yare::parameterized;
     basic_comments = { "basic_comments" },
     basic_array = { "basic_array" },
     basic_logic = { "basic_logic" },
-    // FIXME: Not yet implemented - IF statement support
+    basic_if_simple = { "basic_if_simple" },
+    // FIXME: ELSEIF support not yet implemented
     //basic_if = { "basic_if" },
 )]
 fn test_run_program(name: &str) {

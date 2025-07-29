@@ -1,0 +1,15 @@
+A equals 5
+B is not small
+D is between 5 and 10
+E is either small or large
+F is not 1
+G does not equal 10
+G is greater than or equal to 12
+G is less than or equal to 15
+H is positive
+H is small and positive
+H is exactly 3
+Programming language is BASIC
+Complex condition satisfied
+Integer equals float through coercion
+M is not less than 10

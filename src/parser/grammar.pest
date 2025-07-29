@@ -5,6 +5,7 @@ comment = { remark_leader ~ metacommand? ~ (!"\n" ~ ANY)* }
 program = { SOI ~ ((statement ~ comment? ~ statement_separator) | "\n")* ~ EOI }
 
 statement = {
+    if_statement |
     assignment_statement |
     print_statement |
     input_statement |
@@ -17,6 +18,14 @@ assignment_statement = { (array_access | variable) ~ assignment_operator ~ logic
 print_statement = { "PRINT" ~ logical_expression }
 input_statement = { "INPUT" ~ (string ~ (";" | ","))? ~ variable ~ ("," ~ variable)* }
 dim_statement = { "DIM" ~ shared_keyword? ~ variable_without_type ~ ("(" ~ array_subscripts ~ ")")? ~ ("AS" ~ type_specifier)? }
+if_statement = { 
+    "IF" ~ logical_expression ~ "THEN" ~ statement_separator ~ statement_list ~
+    ("ELSEIF" ~ logical_expression ~ "THEN" ~ statement_separator ~ statement_list)* ~
+    ("ELSE" ~ statement_separator ~ statement_list)? ~
+    "ENDIF"
+}
+
+statement_list = { (statement ~ statement_separator)* }
 
 logical_expression = { logical_term ~ (or_operator ~ logical_term)* }
 logical_term = { logical_factor ~ (and_operator ~ logical_factor)* }

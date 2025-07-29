@@ -7,23 +7,90 @@ use crate::ir;
 
 use itertools::chain;
 use std::iter;
+use std::collections::HashMap;
 
-pub fn compile(program: ast::Program) -> ir::Program {
-    ir::Program {
-        instructions: program
-            .statements
-            .into_iter()
-            .map(compile_statement) // compile each statement into a list of instructions
-            .flatten() // flatten the list
-            .chain(iter::once(ir::Instruction::Halt)) // append a halt instruction at the end
-            .collect(),
+struct CompilerContext {
+    instructions: Vec<ir::Instruction>,
+    label_counter: usize,
+    jump_patches: HashMap<String, Vec<usize>>, // label -> list of instruction indices to patch
+    label_positions: HashMap<String, usize>,   // label -> instruction position
+}
+
+impl CompilerContext {
+    fn new() -> Self {
+        Self {
+            instructions: Vec::new(),
+            label_counter: 0,
+            jump_patches: HashMap::new(),
+            label_positions: HashMap::new(),
+        }
+    }
+    
+    fn generate_label(&mut self) -> String {
+        let label = format!("L{}", self.label_counter);
+        self.label_counter += 1;
+        label
+    }
+    
+    fn emit_instruction(&mut self, instruction: ir::Instruction) {
+        self.instructions.push(instruction);
+    }
+    
+    fn emit_jump(&mut self, label: &str) {
+        let jump_index = self.instructions.len();
+        self.jump_patches.entry(label.to_string()).or_insert_with(Vec::new).push(jump_index);
+        self.instructions.push(ir::Instruction::Jump(0)); // placeholder, will be patched
+    }
+    
+    fn emit_jump_if_false(&mut self, label: &str) {
+        let jump_index = self.instructions.len();
+        self.jump_patches.entry(label.to_string()).or_insert_with(Vec::new).push(jump_index);
+        self.instructions.push(ir::Instruction::JumpIfFalse(0)); // placeholder, will be patched
+    }
+    
+    fn place_label(&mut self, label: &str) {
+        let position = self.instructions.len();
+        self.label_positions.insert(label.to_string(), position);
+    }
+    
+    fn resolve_jumps(&mut self) {
+        for (label, positions) in &self.label_positions {
+            if let Some(jump_indices) = self.jump_patches.get(label) {
+                for &jump_index in jump_indices {
+                    match &mut self.instructions[jump_index] {
+                        ir::Instruction::Jump(target) => *target = *positions,
+                        ir::Instruction::JumpIfFalse(target) => *target = *positions,
+                        ir::Instruction::JumpIfTrue(target) => *target = *positions,
+                        _ => panic!("Expected jump instruction at index {}", jump_index),
+                    }
+                }
+            }
+        }
     }
 }
 
-fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
+pub fn compile(program: ast::Program) -> ir::Program {
+    let mut ctx = CompilerContext::new();
+    
+    for statement in program.statements {
+        compile_statement_with_context(&mut ctx, statement);
+    }
+    
+    ctx.emit_instruction(ir::Instruction::Halt);
+    ctx.resolve_jumps();
+    
+    ir::Program {
+        instructions: ctx.instructions,
+    }
+}
+
+fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Statement) {
     match statement {
         ast::Statement::Print(expr) => {
-            chain!(compile_expression(expr), iter::once(ir::Instruction::Print)).collect()
+            for instruction in compile_expression(expr) {
+                ctx.emit_instruction(instruction);
+            }
+            ctx.emit_instruction(ir::Instruction::Print);
         }
         ast::Statement::Assignment {
             target,
@@ -31,39 +98,39 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
         } => {
             match target {
                 AssignmentTarget::Variable(variable) => {
-                    chain!(
-                        compile_expression(expression),
-                        iter::once(ir::Instruction::StoreVar(variable))
-                    ).collect()
+                    for instruction in compile_expression(expression) {
+                        ctx.emit_instruction(instruction);
+                    }
+                    ctx.emit_instruction(ir::Instruction::StoreVar(variable));
                 }
                 AssignmentTarget::ArrayElement(array_access) => {
-                    chain!(
-                        // First compile index expressions (pushed first, will be popped last)
-                        array_access.indices.iter()
-                            .map(|expr| compile_expression(expr.clone()))
-                            .flatten(),
-                        // Then compile the value expression (pushed last, will be popped first)
-                        compile_expression(expression),
-                        // Store the array element using the value and indices from stack
-                        iter::once(ir::Instruction::StoreArrayElement {
-                            name: array_access.name,
-                            num_indices: array_access.indices.len(),
-                        })
-                    ).collect()
+                    // First compile index expressions
+                    for index_expr in &array_access.indices {
+                        for instruction in compile_expression(index_expr.clone()) {
+                            ctx.emit_instruction(instruction);
+                        }
+                    }
+                    // Then compile the value expression
+                    for instruction in compile_expression(expression) {
+                        ctx.emit_instruction(instruction);
+                    }
+                    // Store the array element
+                    ctx.emit_instruction(ir::Instruction::StoreArrayElement {
+                        name: array_access.name,
+                        num_indices: array_access.indices.len(),
+                    });
                 }
             }
         }
-        ast::Statement::Input { prompt, variables } => chain!(
-            prompt
-                .map(|p| compile_statement(ast::Statement::Print(ast::Expression::String(p))))
-                .into_iter()
-                .flatten(),
-            iter::once(ir::Instruction::Input(variables))
-        )
-        .collect(),
+        ast::Statement::Input { prompt, variables } => {
+            if let Some(p) = prompt {
+                compile_statement_with_context(ctx, ast::Statement::Print(ast::Expression::String(p)));
+            }
+            ctx.emit_instruction(ir::Instruction::Input(variables));
+        }
         ast::Statement::Metacommand(metacommand) => match metacommand {
-            ast::Metacommand::Static => vec![ir::Instruction::SetStatic],
-            ast::Metacommand::Dynamic => vec![ir::Instruction::SetDynamic],
+            ast::Metacommand::Static => ctx.emit_instruction(ir::Instruction::SetStatic),
+            ast::Metacommand::Dynamic => ctx.emit_instruction(ir::Instruction::SetDynamic),
         },
         ast::Statement::Dim(array_decl) => {
             // For each dimension, we need to determine the bounds
@@ -72,24 +139,72 @@ fn compile_statement(statement: ast::Statement) -> Vec<ir::Instruction> {
                 let lower_bound = match &dim.lower {
                     Some(ast::Expression::Integer(val)) => *val as isize,
                     None => -1, // Special sentinel value for default bounds (will be adjusted based on STATIC/DYNAMIC)
-                    _ => return vec![], // For now, only support constant bounds
+                    _ => return, // For now, only support constant bounds
                 };
                 
                 let upper_bound = match &dim.upper {
                     ast::Expression::Integer(val) => *val as isize,
-                    _ => return vec![], // For now, only support constant bounds
+                    _ => return, // For now, only support constant bounds
                 };
                 
                 dimensions.push((lower_bound, upper_bound));
             }
             
-            vec![ir::Instruction::DeclareArray {
+            ctx.emit_instruction(ir::Instruction::DeclareArray {
                 name: array_decl.name.clone(),
                 element_type: array_decl.element_type.clone(),
                 dimensions,
-            }]
+            });
         }
-        ast::Statement::Noop => vec![],
+        ast::Statement::If { branches } => {
+            // Generate labels for the IF statement structure
+            let mut branch_labels = Vec::new();
+            let end_label = ctx.generate_label();
+            
+            // Generate labels for each branch
+            for _ in 0..branches.len() {
+                branch_labels.push(ctx.generate_label());
+            }
+            
+            // Compile each branch
+            for (i, branch) in branches.iter().enumerate() {
+                if let Some(condition) = &branch.condition {
+                    // Compile condition
+                    for instruction in compile_expression(condition.clone()) {
+                        ctx.emit_instruction(instruction);
+                    }
+                    
+                    // Jump to next branch if condition is false
+                    let next_label = if i + 1 < branch_labels.len() {
+                        &branch_labels[i + 1]
+                    } else {
+                        &end_label
+                    };
+                    ctx.emit_jump_if_false(next_label);
+                }
+                
+                // Compile statements in this branch
+                for statement in &branch.statements {
+                    compile_statement_with_context(ctx, statement.clone());
+                }
+                
+                // Jump to end (skip other branches)
+                if i < branches.len() - 1 {
+                    ctx.emit_jump(&end_label);
+                }
+                
+                // Place label for next branch
+                if i + 1 < branch_labels.len() {
+                    ctx.place_label(&branch_labels[i + 1]);
+                }
+            }
+            
+            // Place end label
+            ctx.place_label(&end_label);
+        }
+        ast::Statement::Noop => {
+            // Do nothing
+        }
     }
 }
 
