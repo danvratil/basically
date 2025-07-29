@@ -112,6 +112,8 @@ pub enum Statement {
         condition: Option<Expression>, // None for infinite loop
         statements: Vec<Statement>,
     },
+    ExitDo,
+    ExitFor,
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -492,6 +494,21 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     condition: None,
                     statements,
                 })
+            }
+            Rule::exit_statement => {
+                // The exit_statement rule matches "EXIT" followed by "DO" or "FOR"
+                // We need to check the text content to determine which type
+                let text = statement.as_str();
+                if text.contains("EXIT DO") {
+                    Ok(Statement::ExitDo)
+                } else if text.contains("EXIT FOR") {
+                    Ok(Statement::ExitFor)
+                } else {
+                    Err(AstError::InvalidStatement(format!(
+                        "Invalid EXIT statement: {}",
+                        text
+                    )))
+                }
             }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected statement, got {:?}",

@@ -49,7 +49,9 @@ fn main() {
     println!("\n=== IR ===");
 
     let ir_program = ir::compile(program);
-    println!("{ir_program:?}");
+    for (idx, instruction) in ir_program.instructions.iter().enumerate() {
+        println!("{idx:>3}: {instruction:?}");
+    }
 
     println!("\n=== Executing ===");
     let mut vm = VM::new(

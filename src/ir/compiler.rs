@@ -9,11 +9,18 @@ use itertools::chain;
 use std::collections::HashMap;
 use std::iter;
 
+#[derive(Debug)]
+enum LoopContext {
+    For { end_label: String },
+    Do { end_label: String },
+}
+
 struct CompilerContext {
     instructions: Vec<ir::Instruction>,
     label_counter: usize,
     jump_patches: HashMap<String, Vec<usize>>, // label -> list of instruction indices to patch
     label_positions: HashMap<String, usize>,   // label -> instruction position
+    loop_stack: Vec<LoopContext>,             // track current loop context for EXIT statements
 }
 
 impl CompilerContext {
@@ -23,6 +30,7 @@ impl CompilerContext {
             label_counter: 0,
             jump_patches: HashMap::new(),
             label_positions: HashMap::new(),
+            loop_stack: Vec::new(),
         }
     }
 
@@ -81,6 +89,26 @@ impl CompilerContext {
                 }
             }
         }
+    }
+
+    fn push_loop_context(&mut self, context: LoopContext) {
+        self.loop_stack.push(context);
+    }
+
+    fn pop_loop_context(&mut self) {
+        self.loop_stack.pop();
+    }
+
+    fn find_loop_end_label(&self, loop_type: &str) -> Option<&String> {
+        // Find the topmost loop of the specified type
+        for context in self.loop_stack.iter().rev() {
+            match (context, loop_type) {
+                (LoopContext::For { end_label }, "FOR") => return Some(end_label),
+                (LoopContext::Do { end_label }, "DO") => return Some(end_label),
+                _ => continue,
+            }
+        }
+        None
     }
 }
 
@@ -267,11 +295,19 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
             // Jump to condition check
             ctx.emit_jump(&for_check_label);
 
+            // Push FOR loop context for EXIT FOR statements
+            ctx.push_loop_context(LoopContext::For {
+                end_label: for_end_label.clone(),
+            });
+
             // FOR loop body
             ctx.place_label(&for_body_label);
             for statement in statements {
                 compile_statement_with_context(ctx, statement.clone());
             }
+
+            // Pop FOR loop context
+            ctx.pop_loop_context();
 
             // Increment counter by step
             ctx.emit_instruction(ir::Instruction::LoadVar(counter.clone()));
@@ -319,12 +355,15 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
 
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in
-                        compile_expression(condition.expect("PreTestWhile must have condition"))
-                    {
+                    for instruction in compile_expression(condition.expect("PreTestWhile must have condition")) {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_false(&end_label);
+
+                    // Push DO loop context for EXIT DO statements
+                    ctx.push_loop_context(LoopContext::Do {
+                        end_label: end_label.clone(),
+                    });
 
                     // Loop body
                     ctx.place_label(&body_label);
@@ -332,6 +371,9 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                         compile_statement_with_context(ctx, statement);
                     }
                     ctx.emit_jump(&condition_label);
+
+                    // Pop DO loop context
+                    ctx.pop_loop_context();
 
                     // End of loop
                     ctx.place_label(&end_label);
@@ -344,12 +386,15 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
 
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in
-                        compile_expression(condition.expect("PreTestUntil must have condition"))
-                    {
+                    for instruction in compile_expression(condition.expect("PreTestUntil must have condition")) {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_true(&end_label);
+
+                    // Push DO loop context for EXIT DO statements
+                    ctx.push_loop_context(LoopContext::Do {
+                        end_label: end_label.clone(),
+                    });
 
                     // Loop body
                     ctx.place_label(&body_label);
@@ -358,6 +403,9 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                     }
                     ctx.emit_jump(&condition_label);
 
+                    // Pop DO loop context
+                    ctx.pop_loop_context();
+
                     // End of loop
                     ctx.place_label(&end_label);
                 }
@@ -365,6 +413,12 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                     // DO...LOOP WHILE condition
                     let body_label = ctx.generate_label();
                     let condition_label = ctx.generate_label();
+                    let end_label = ctx.generate_label();
+
+                    // Push DO loop context for EXIT DO statements
+                    ctx.push_loop_context(LoopContext::Do {
+                        end_label: end_label.clone(),
+                    });
 
                     // Loop body
                     ctx.place_label(&body_label);
@@ -372,19 +426,27 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                         compile_statement_with_context(ctx, statement);
                     }
 
+                    // Pop DO loop context
+                    ctx.pop_loop_context();
+
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in
-                        compile_expression(condition.expect("PostTestWhile must have condition"))
-                    {
+                    for instruction in compile_expression(condition.expect("PostTestWhile must have condition")) {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_true(&body_label);
+                    ctx.place_label(&end_label);
                 }
                 ast::DoConditionType::PostTestUntil => {
                     // DO...LOOP UNTIL condition
                     let body_label = ctx.generate_label();
                     let condition_label = ctx.generate_label();
+                    let end_label = ctx.generate_label();
+
+                    // Push DO loop context for EXIT DO statements
+                    ctx.push_loop_context(LoopContext::Do {
+                        end_label: end_label.clone(),
+                    });
 
                     // Loop body
                     ctx.place_label(&body_label);
@@ -392,18 +454,28 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                         compile_statement_with_context(ctx, statement);
                     }
 
+                    // Pop DO loop context
+                    ctx.pop_loop_context();
+
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in
-                        compile_expression(condition.expect("PostTestUntil must have condition"))
-                    {
+                    for instruction in compile_expression(condition.expect("PostTestUntil must have condition")) {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_false(&body_label);
+
+                    // End of loop
+                    ctx.place_label(&end_label);
                 }
                 ast::DoConditionType::None => {
                     // DO...LOOP (infinite loop)
                     let body_label = ctx.generate_label();
+                    let end_label = ctx.generate_label();
+
+                    // Push DO loop context for EXIT DO statements
+                    ctx.push_loop_context(LoopContext::Do {
+                        end_label: end_label.clone(),
+                    });
 
                     // Loop body
                     ctx.place_label(&body_label);
@@ -411,7 +483,32 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                         compile_statement_with_context(ctx, statement);
                     }
                     ctx.emit_jump(&body_label);
+
+                    ctx.pop_loop_context();
+
+                    // End of loop
+                    ctx.place_label(&end_label);
                 }
+            }
+        }
+        ast::Statement::ExitDo => {
+            // Find the topmost DO loop and jump to its end
+            if let Some(end_label) = ctx.find_loop_end_label("DO") {
+                let end_label = end_label.clone();
+                ctx.emit_jump(&end_label);
+            } else {
+                // This should be a compile-time error, but for now we'll just ignore it
+                // TODO: Add proper error handling for EXIT DO outside of DO loop
+            }
+        }
+        ast::Statement::ExitFor => {
+            // Find the topmost FOR loop and jump to its end
+            if let Some(end_label) = ctx.find_loop_end_label("FOR") {
+                let end_label = end_label.clone();
+                ctx.emit_jump(&end_label);
+            } else {
+                // This should be a compile-time error, but for now we'll just ignore it
+                // TODO: Add proper error handling for EXIT FOR outside of FOR loop
             }
         }
         ast::Statement::Noop => {
