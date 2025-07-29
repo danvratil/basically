@@ -1,0 +1,4 @@
+Starting program
+At end label
+At middle label
+Program complete

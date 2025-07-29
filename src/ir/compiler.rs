@@ -129,13 +129,29 @@ pub fn compile(program: ast::Program) -> ir::Program {
 
 fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Statement) {
     match statement {
-        ast::Statement::Print(expr) => {
+        ast::Statement::NumberedStatement { line_number, statement } => {
+            // Place line number label first
+            let line_label = format!("LINE_{}", line_number);
+            ctx.place_label(&line_label);
+            
+            // Then compile the inner statement
+            compile_plain_statement_with_context(ctx, statement);
+        }
+        ast::Statement::PlainStatement(statement) => {
+            compile_plain_statement_with_context(ctx, statement);
+        }
+    }
+}
+
+fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: ast::PlainStatement) {
+    match statement {
+        ast::PlainStatement::Print(expr) => {
             for instruction in compile_expression(expr) {
                 ctx.emit_instruction(instruction);
             }
             ctx.emit_instruction(ir::Instruction::Print);
         }
-        ast::Statement::Assignment { target, expression } => {
+        ast::PlainStatement::Assignment { target, expression } => {
             match target {
                 AssignmentTarget::Variable(variable) => {
                     for instruction in compile_expression(expression) {
@@ -162,20 +178,20 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                 }
             }
         }
-        ast::Statement::Input { prompt, variables } => {
+        ast::PlainStatement::Input { prompt, variables } => {
             if let Some(p) = prompt {
-                compile_statement_with_context(
+                compile_plain_statement_with_context(
                     ctx,
-                    ast::Statement::Print(ast::Expression::String(p)),
+                    ast::PlainStatement::Print(ast::Expression::String(p)),
                 );
             }
             ctx.emit_instruction(ir::Instruction::Input(variables));
         }
-        ast::Statement::Metacommand(metacommand) => match metacommand {
+        ast::PlainStatement::Metacommand(metacommand) => match metacommand {
             ast::Metacommand::Static => ctx.emit_instruction(ir::Instruction::SetStatic),
             ast::Metacommand::Dynamic => ctx.emit_instruction(ir::Instruction::SetDynamic),
         },
-        ast::Statement::Dim(array_decl) => {
+        ast::PlainStatement::Dim(array_decl) => {
             // For each dimension, we need to determine the bounds
             let mut dimensions = Vec::new();
             for dim in &array_decl.dimensions {
@@ -199,7 +215,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                 dimensions,
             });
         }
-        ast::Statement::If { branches } => {
+        ast::PlainStatement::If { branches } => {
             // Generate labels for the IF statement structure
             let mut branch_labels = Vec::new();
             let end_label = ctx.generate_label();
@@ -245,7 +261,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
             // Place end label
             ctx.place_label(&end_label);
         }
-        ast::Statement::For {
+        ast::PlainStatement::For {
             counter,
             start,
             end,
@@ -341,7 +357,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
             // End of FOR loop
             ctx.place_label(&for_end_label);
         }
-        ast::Statement::DoLoop {
+        ast::PlainStatement::DoLoop {
             condition_type,
             condition,
             statements,
@@ -491,7 +507,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                 }
             }
         }
-        ast::Statement::While { condition, statements } => {
+        ast::PlainStatement::While { condition, statements } => {
             // Generate labels for WHILE loop
             let while_check_label = ctx.generate_label();
             let while_end_label = ctx.generate_label();
@@ -514,7 +530,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
             // End of WHILE loop
             ctx.place_label(&while_end_label);
         }
-        ast::Statement::ExitDo => {
+        ast::PlainStatement::ExitDo => {
             // Find the topmost DO loop and jump to its end
             if let Some(end_label) = ctx.find_loop_end_label("DO") {
                 let end_label = end_label.clone();
@@ -524,7 +540,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                 // TODO: Add proper error handling for EXIT DO outside of DO loop
             }
         }
-        ast::Statement::ExitFor => {
+        ast::PlainStatement::ExitFor => {
             // Find the topmost FOR loop and jump to its end
             if let Some(end_label) = ctx.find_loop_end_label("FOR") {
                 let end_label = end_label.clone();
@@ -534,8 +550,18 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                 // TODO: Add proper error handling for EXIT FOR outside of FOR loop
             }
         }
-        ast::Statement::Noop => {
+        ast::PlainStatement::Noop => {
             // Do nothing
+        }
+        ast::PlainStatement::Goto(target) => {
+            let label = match target {
+                ast::GotoTarget::LineNumber(num) => format!("LINE_{}", num),
+                ast::GotoTarget::Label(name) => name.clone(),
+            };
+            ctx.emit_jump(&label);
+        }
+        ast::PlainStatement::Label(name) => {
+            ctx.place_label(&name);
         }
     }
 }

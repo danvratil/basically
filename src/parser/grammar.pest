@@ -2,14 +2,18 @@ WHITESPACE = _{ " " | "\t" }
 //COMMENT = _{ ("'" | "REM") ~ metacommand? ~ (!"\n" ~ ANY)* ~ ("\n" | EOI) }
 comment = { remark_leader ~ metacommand? ~ (!"\n" ~ ANY)* }
 
-program = { SOI ~ ((statement ~ comment? ~ statement_separator) | "\n")* ~ EOI }
+program = { SOI ~ ((numbered_statement | plain_statement | label_definition | comment) ~ comment? ~ statement_separator | "\n")* ~ EOI }
 
-statement = {
+numbered_statement = { number ~ plain_statement }
+label_definition = { identifier ~ ":" }
+
+plain_statement = {
     for_statement |
     if_statement |
     do_statement |
     while_statement |
     exit_statement |
+    goto_statement |
     assignment_statement |
     print_statement |
     input_statement |
@@ -49,8 +53,9 @@ do_infinite_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" }
 while_statement = { "WHILE" ~ logical_expression ~ statement_separator ~ statement_list ~ "WEND" }
 
 exit_statement = { "EXIT" ~ ("DO" | "FOR") }
+goto_statement = { "GOTO" ~ (number | identifier) }
 
-statement_list = { (statement ~ statement_separator)* }
+statement_list = { (plain_statement ~ statement_separator)* }
 
 logical_expression = { logical_term ~ (or_operator ~ logical_term)* }
 logical_term = { logical_factor ~ (and_operator ~ logical_factor)* }
@@ -67,6 +72,7 @@ number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? | "." ~ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ (single_precision_suffix | double_precision_suffix | string_suffix | integer_suffix | long_integer_suffix)? }
 variable_without_type = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 array_access = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ "(" ~ logical_expression ~ ("," ~ logical_expression)* ~ ")" }
 
 

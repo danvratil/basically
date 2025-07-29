@@ -30,6 +30,9 @@ use yare::parameterized;
     basic_while_simple = { "basic_while_simple" },
     basic_while_nested = { "basic_while_nested" },
     basic_while_complex = { "basic_while_complex" },
+    basic_goto_line_numbers = { "basic_goto_line_numbers" },
+    basic_goto_labels = { "basic_goto_labels" },
+    basic_goto_mixed = { "basic_goto_mixed" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{name}.bas")).unwrap();

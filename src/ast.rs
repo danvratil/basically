@@ -85,6 +85,12 @@ pub enum DoConditionType {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
+    NumberedStatement { line_number: u32, statement: PlainStatement },
+    PlainStatement(PlainStatement),
+}
+
+#[derive(Debug, Clone)]
+pub enum PlainStatement {
     Noop,
     Print(Expression),
     Assignment {
@@ -118,6 +124,32 @@ pub enum Statement {
     },
     ExitDo,
     ExitFor,
+    Goto(GotoTarget),
+    Label(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum GotoTarget {
+    LineNumber(u32),
+    Label(String),
+}
+
+impl Statement {
+    /// Get the inner PlainStatement regardless of whether it's numbered
+    pub fn inner_statement(&self) -> &PlainStatement {
+        match self {
+            Statement::NumberedStatement { statement, .. } => statement,
+            Statement::PlainStatement(statement) => statement,
+        }
+    }
+    
+    /// Get the line number if this is a numbered statement
+    pub fn line_number(&self) -> Option<u32> {
+        match self {
+            Statement::NumberedStatement { line_number, .. } => Some(*line_number),
+            Statement::PlainStatement(_) => None,
+        }
+    }
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -125,12 +157,58 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
 
     fn try_from(statement: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         match statement.as_rule() {
-            Rule::statement => {
-                Ok(Statement::try_from(statement.into_inner().next().ok_or(
-                    AstError::InvalidStatement("Empty statement".to_string()),
+            Rule::numbered_statement => {
+                let mut elements = statement.into_inner();
+                let line_number_pair = elements.next().ok_or(
+                    AstError::InvalidStatement("Missing line number".to_string()),
+                )?;
+                let statement_pair = elements.next().ok_or(
+                    AstError::InvalidStatement("Missing statement after line number".to_string()),
+                )?;
+
+                let line_number = line_number_pair.as_str().parse::<u32>().map_err(|_| {
+                    AstError::InvalidStatement("Invalid line number".to_string())
+                })?;
+
+                let statement = PlainStatement::try_from(statement_pair)?;
+
+                Ok(Statement::NumberedStatement { line_number, statement })
+            }
+            Rule::plain_statement => {
+                let statement = PlainStatement::try_from(statement)?;
+                Ok(Statement::PlainStatement(statement))
+            }
+            Rule::label_definition => {
+                let mut elements = statement.into_inner();
+                let identifier = elements.next().ok_or(
+                    AstError::InvalidStatement("Missing label identifier".to_string()),
+                )?;
+                let label_name = identifier.as_str().to_string();
+                Ok(Statement::PlainStatement(PlainStatement::Label(label_name)))
+            }
+            Rule::comment => {
+                let plain_statement = PlainStatement::try_from(statement)?;
+                Ok(Statement::PlainStatement(plain_statement))
+            }
+            _ => Err(AstError::InvalidStatement(format!(
+                "Expected numbered_statement, plain_statement, label_definition, or comment, got {:?}",
+                statement.as_rule()
+            ))),
+        }
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for PlainStatement {
+    type Error = AstError;
+
+    fn try_from(statement: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match statement.as_rule() {
+            Rule::plain_statement => {
+                Ok(PlainStatement::try_from(statement.into_inner().next().ok_or(
+                    AstError::InvalidStatement("Empty plain statement".to_string()),
                 )?)?)
             }
-            Rule::print_statement => Ok(Statement::Print(Expression::try_from(
+            Rule::print_statement => Ok(PlainStatement::Print(Expression::try_from(
                 statement
                     .into_inner()
                     .next()
@@ -168,7 +246,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 let expression = Expression::try_from(elements.pop_front().ok_or(
                     AstError::InvalidStatement("Empty assignment expression".to_string()),
                 )?)?;
-                Ok(Statement::Assignment { target, expression })
+                Ok(PlainStatement::Assignment { target, expression })
             }
             Rule::input_statement => {
                 let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
@@ -206,7 +284,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                         )));
                     }
                 }
-                Ok(Statement::Input { prompt, variables })
+                Ok(PlainStatement::Input { prompt, variables })
             }
             Rule::comment => {
                 let mut elements = statement.clone().into_inner().collect::<VecDeque<_>>();
@@ -216,9 +294,9 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     .ok_or(AstError::InvalidStatement("Empty comment".to_string()))?;
                 // Pop the metacommand if present, otherwise this is a noop
                 match elements.pop_front().map(|p| p.as_str()) {
-                    Some("$STATIC") => Ok(Statement::Metacommand(Metacommand::Static)),
-                    Some("$DYNAMIC") => Ok(Statement::Metacommand(Metacommand::Dynamic)),
-                    _ => Ok(Statement::Noop),
+                    Some("$STATIC") => Ok(PlainStatement::Metacommand(Metacommand::Static)),
+                    Some("$DYNAMIC") => Ok(PlainStatement::Metacommand(Metacommand::Dynamic)),
+                    _ => Ok(PlainStatement::Noop),
                 }
             }
             Rule::dim_statement => {
@@ -285,7 +363,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     VariableType::Integer // Default
                 };
 
-                Ok(Statement::Dim(ArrayDeclaration {
+                Ok(PlainStatement::Dim(ArrayDeclaration {
                     name,
                     element_type,
                     dimensions,
@@ -328,7 +406,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
 
                 // Skip optional NEXT variable (we don't validate it matches counter for now)
 
-                Ok(Statement::For {
+                Ok(PlainStatement::For {
                     counter,
                     start,
                     end,
@@ -377,7 +455,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     });
                 }
 
-                Ok(Statement::If { branches })
+                Ok(PlainStatement::If { branches })
             }
             Rule::do_statement => {
                 // Delegate to the specific DO statement type
@@ -385,7 +463,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     .into_inner()
                     .next()
                     .ok_or(AstError::InvalidStatement("Empty DO statement".to_string()))?;
-                Statement::try_from(inner_statement)
+                PlainStatement::try_from(inner_statement)
             }
             Rule::do_while_statement => {
                 let elements = statement.into_inner().collect::<Vec<_>>();
@@ -404,7 +482,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 // Parse statement list
                 let statements = parse_statement_list(elements[1].clone())?;
 
-                Ok(Statement::DoLoop {
+                Ok(PlainStatement::DoLoop {
                     condition_type: DoConditionType::PreTestWhile,
                     condition: Some(condition),
                     statements,
@@ -427,7 +505,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 // Parse statement list
                 let statements = parse_statement_list(elements[1].clone())?;
 
-                Ok(Statement::DoLoop {
+                Ok(PlainStatement::DoLoop {
                     condition_type: DoConditionType::PreTestUntil,
                     condition: Some(condition),
                     statements,
@@ -450,7 +528,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 // Parse condition
                 let condition = Expression::try_from(elements[1].clone())?;
 
-                Ok(Statement::DoLoop {
+                Ok(PlainStatement::DoLoop {
                     condition_type: DoConditionType::PostTestWhile,
                     condition: Some(condition),
                     statements,
@@ -473,7 +551,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 // Parse condition
                 let condition = Expression::try_from(elements[1].clone())?;
 
-                Ok(Statement::DoLoop {
+                Ok(PlainStatement::DoLoop {
                     condition_type: DoConditionType::PostTestUntil,
                     condition: Some(condition),
                     statements,
@@ -493,7 +571,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 // Parse statement list
                 let statements = parse_statement_list(elements[0].clone())?;
 
-                Ok(Statement::DoLoop {
+                Ok(PlainStatement::DoLoop {
                     condition_type: DoConditionType::None,
                     condition: None,
                     statements,
@@ -516,16 +594,16 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 // Parse statement list
                 let statements = parse_statement_list(elements[1].clone())?;
 
-                Ok(Statement::While { condition, statements })
+                Ok(PlainStatement::While { condition, statements })
             }
             Rule::exit_statement => {
                 // The exit_statement rule matches "EXIT" followed by "DO" or "FOR"
                 // We need to check the text content to determine which type
                 let text = statement.as_str();
                 if text.contains("EXIT DO") {
-                    Ok(Statement::ExitDo)
+                    Ok(PlainStatement::ExitDo)
                 } else if text.contains("EXIT FOR") {
-                    Ok(Statement::ExitFor)
+                    Ok(PlainStatement::ExitFor)
                 } else {
                     Err(AstError::InvalidStatement(format!(
                         "Invalid EXIT statement: {}",
@@ -533,8 +611,33 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     )))
                 }
             }
+            Rule::goto_statement => {
+                let mut elements = statement.into_inner();
+                let target_pair = elements.next().ok_or(
+                    AstError::InvalidStatement("Missing GOTO target".to_string()),
+                )?;
+
+                let target = match target_pair.as_rule() {
+                    Rule::number => {
+                        let line_number = target_pair.as_str().parse::<u32>().map_err(|_| {
+                            AstError::InvalidStatement("Invalid line number in GOTO".to_string())
+                        })?;
+                        GotoTarget::LineNumber(line_number)
+                    }
+                    Rule::identifier => {
+                        GotoTarget::Label(target_pair.as_str().to_string())
+                    }
+                    _ => {
+                        return Err(AstError::InvalidStatement(
+                            "GOTO target must be line number or label".to_string(),
+                        ));
+                    }
+                };
+
+                Ok(PlainStatement::Goto(target))
+            }
             _ => Err(AstError::InvalidStatement(format!(
-                "Expected statement, got {:?}",
+                "Expected plain statement, got {:?}",
                 statement.as_rule()
             ))),
         }
@@ -544,7 +647,7 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
 fn parse_statement_list(statement_list: Pair<'_, Rule>) -> Result<Vec<Statement>, AstError> {
     statement_list
         .into_inner()
-        .map(Statement::try_from)
+        .map(|plain_stmt_pair| Ok(Statement::PlainStatement(PlainStatement::try_from(plain_stmt_pair)?)))
         .collect::<Result<Vec<_>, _>>()
 }
 

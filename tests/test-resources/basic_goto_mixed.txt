@@ -1,0 +1,3 @@
+Line 10
+At mixed label
+Back to line numbers
