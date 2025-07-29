@@ -862,7 +862,10 @@ fn case_constant_to_ir_value(constant: &ast::CaseConstant) -> ir::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Variable, VariableType, Expression, PlainStatement, BinaryOperator, UnaryOperator, LogicalOperator, RelationalOperator, AssignmentTarget, ArrayAccess, IfBranch, Metacommand};
+    use crate::ast::{
+        ArrayAccess, AssignmentTarget, BinaryOperator, Expression, IfBranch, LogicalOperator,
+        Metacommand, PlainStatement, RelationalOperator, UnaryOperator, Variable, VariableType,
+    };
     use crate::ir::{Instruction, Value};
 
     // Helper functions for creating test AST nodes
@@ -900,7 +903,10 @@ mod tests {
             let expr = create_int_expr(42);
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 1);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(42))
+            ));
         }
 
         #[test]
@@ -908,15 +914,21 @@ mod tests {
             let expr = create_int_expr(100000); // Larger than i16::MAX
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 1);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Long(100000))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Long(100000))
+            ));
         }
 
         #[test]
+        #[allow(clippy::approx_constant)]
         fn test_compile_float_literal() {
             let expr = create_float_expr(3.14);
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 1);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::SinglePrecision(f)) if (f - 3.14).abs() < f32::EPSILON));
+            assert!(
+                matches!(instructions[0], Instruction::LoadConst(Value::SinglePrecision(f)) if (f - 3.14).abs() < f32::EPSILON)
+            );
         }
 
         #[test]
@@ -924,7 +936,9 @@ mod tests {
             let expr = create_float_expr(1e50); // Larger than f32::MAX
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 1);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::DoublePrecision(f)) if f == 1e50));
+            assert!(
+                matches!(instructions[0], Instruction::LoadConst(Value::DoublePrecision(f)) if f == 1e50)
+            );
         }
 
         #[test]
@@ -932,7 +946,9 @@ mod tests {
             let expr = create_string_expr("Hello World");
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 1);
-            assert!(matches!(&instructions[0], Instruction::LoadConst(Value::String(s)) if s == "Hello World"));
+            assert!(
+                matches!(&instructions[0], Instruction::LoadConst(Value::String(s)) if s == "Hello World")
+            );
         }
 
         #[test]
@@ -940,7 +956,9 @@ mod tests {
             let expr = create_var_expr("x", VariableType::Integer);
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 1);
-            assert!(matches!(&instructions[0], Instruction::LoadVar(Variable { name, r#type }) if name == "x" && *r#type == VariableType::Integer));
+            assert!(
+                matches!(&instructions[0], Instruction::LoadVar(Variable { name, r#type }) if name == "x" && *r#type == VariableType::Integer)
+            );
         }
 
         #[test]
@@ -952,8 +970,14 @@ mod tests {
             };
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 3);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(2))));
-            assert!(matches!(instructions[1], Instruction::LoadConst(Value::Integer(3))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(2))
+            ));
+            assert!(matches!(
+                instructions[1],
+                Instruction::LoadConst(Value::Integer(3))
+            ));
             assert!(matches!(instructions[2], Instruction::Add));
         }
 
@@ -973,7 +997,9 @@ mod tests {
                 };
                 let instructions = compile_expression(expr);
                 assert_eq!(instructions.len(), 3);
-                assert!(matches!(&instructions[2], instr if std::mem::discriminant(instr) == std::mem::discriminant(&expected_instr)));
+                assert!(
+                    matches!(&instructions[2], instr if std::mem::discriminant(instr) == std::mem::discriminant(&expected_instr))
+                );
             }
         }
 
@@ -986,7 +1012,10 @@ mod tests {
             };
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 2);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(5))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(5))
+            ));
             assert!(matches!(instructions[1], Instruction::UnaryPlus));
 
             // Unary minus
@@ -996,7 +1025,10 @@ mod tests {
             };
             let instructions = compile_expression(expr);
             assert_eq!(instructions.len(), 2);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(5))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(5))
+            ));
             assert!(matches!(instructions[1], Instruction::UnaryMinus));
         }
 
@@ -1039,9 +1071,15 @@ mod tests {
                 (RelationalOperator::Equal, Instruction::Equal),
                 (RelationalOperator::NotEqual, Instruction::NotEqual),
                 (RelationalOperator::LessThan, Instruction::LessThan),
-                (RelationalOperator::LessThanEqual, Instruction::LessThanEqual),
+                (
+                    RelationalOperator::LessThanEqual,
+                    Instruction::LessThanEqual,
+                ),
                 (RelationalOperator::GreaterThan, Instruction::GreaterThan),
-                (RelationalOperator::GreaterThanEqual, Instruction::GreaterThanEqual),
+                (
+                    RelationalOperator::GreaterThanEqual,
+                    Instruction::GreaterThanEqual,
+                ),
             ];
 
             for (ast_op, expected_instr) in test_cases {
@@ -1052,7 +1090,9 @@ mod tests {
                 };
                 let instructions = compile_expression(expr);
                 assert_eq!(instructions.len(), 3);
-                assert!(matches!(&instructions[2], instr if std::mem::discriminant(instr) == std::mem::discriminant(&expected_instr)));
+                assert!(
+                    matches!(&instructions[2], instr if std::mem::discriminant(instr) == std::mem::discriminant(&expected_instr))
+                );
             }
         }
 
@@ -1064,11 +1104,19 @@ mod tests {
             };
             let expr = Expression::ArrayAccess(array_access);
             let instructions = compile_expression(expr);
-            
+
             assert_eq!(instructions.len(), 3);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(1))));
-            assert!(matches!(instructions[1], Instruction::LoadConst(Value::Integer(2))));
-            assert!(matches!(&instructions[2], Instruction::LoadArrayElement { name, num_indices } if name == "arr" && *num_indices == 2));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(1))
+            ));
+            assert!(matches!(
+                instructions[1],
+                Instruction::LoadConst(Value::Integer(2))
+            ));
+            assert!(
+                matches!(&instructions[2], Instruction::LoadArrayElement { name, num_indices } if name == "arr" && *num_indices == 2)
+            );
         }
 
         #[test]
@@ -1084,13 +1132,22 @@ mod tests {
                 right: Box::new(create_int_expr(4)),
             };
             let instructions = compile_expression(expr);
-            
+
             // Should compile to: LoadConst(2), LoadConst(3), Add, LoadConst(4), Multiply
             assert_eq!(instructions.len(), 5);
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(2))));
-            assert!(matches!(instructions[1], Instruction::LoadConst(Value::Integer(3))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(2))
+            ));
+            assert!(matches!(
+                instructions[1],
+                Instruction::LoadConst(Value::Integer(3))
+            ));
             assert!(matches!(instructions[2], Instruction::Add));
-            assert!(matches!(instructions[3], Instruction::LoadConst(Value::Integer(4))));
+            assert!(matches!(
+                instructions[3],
+                Instruction::LoadConst(Value::Integer(4))
+            ));
             assert!(matches!(instructions[4], Instruction::Multiply));
         }
     }
@@ -1102,10 +1159,15 @@ mod tests {
         #[test]
         fn test_compile_print_statement() {
             let stmt = Statement::PlainStatement(PlainStatement::Print(create_int_expr(42)));
-            let program = compile(ast::Program { statements: vec![stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![stmt],
+            });
+
             assert_eq!(program.instructions.len(), 3); // LoadConst, Print, Halt
-            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(
+                program.instructions[0],
+                Instruction::LoadConst(Value::Integer(42))
+            ));
             assert!(matches!(program.instructions[1], Instruction::Print));
             assert!(matches!(program.instructions[2], Instruction::Halt));
         }
@@ -1116,11 +1178,18 @@ mod tests {
                 target: AssignmentTarget::Variable(create_var("x", VariableType::Integer)),
                 expression: create_int_expr(42),
             });
-            let program = compile(ast::Program { statements: vec![stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![stmt],
+            });
+
             assert_eq!(program.instructions.len(), 3); // LoadConst, StoreVar, Halt
-            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(42))));
-            assert!(matches!(&program.instructions[1], Instruction::StoreVar(Variable { name, .. }) if name == "x"));
+            assert!(matches!(
+                program.instructions[0],
+                Instruction::LoadConst(Value::Integer(42))
+            ));
+            assert!(
+                matches!(&program.instructions[1], Instruction::StoreVar(Variable { name, .. }) if name == "x")
+            );
             assert!(matches!(program.instructions[2], Instruction::Halt));
         }
 
@@ -1134,13 +1203,23 @@ mod tests {
                 target: AssignmentTarget::ArrayElement(array_access),
                 expression: create_int_expr(42),
             });
-            let program = compile(ast::Program { statements: vec![stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![stmt],
+            });
+
             // Should be: LoadConst(1), LoadConst(42), StoreArrayElement, Halt
             assert_eq!(program.instructions.len(), 4);
-            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(1))));
-            assert!(matches!(program.instructions[1], Instruction::LoadConst(Value::Integer(42))));
-            assert!(matches!(&program.instructions[2], Instruction::StoreArrayElement { name, num_indices } if name == "arr" && *num_indices == 1));
+            assert!(matches!(
+                program.instructions[0],
+                Instruction::LoadConst(Value::Integer(1))
+            ));
+            assert!(matches!(
+                program.instructions[1],
+                Instruction::LoadConst(Value::Integer(42))
+            ));
+            assert!(
+                matches!(&program.instructions[2], Instruction::StoreArrayElement { name, num_indices } if name == "arr" && *num_indices == 1)
+            );
             assert!(matches!(program.instructions[3], Instruction::Halt));
         }
 
@@ -1150,13 +1229,19 @@ mod tests {
                 prompt: Some("Enter a number: ".to_string()),
                 variables: vec![create_var("x", VariableType::Integer)],
             });
-            let program = compile(ast::Program { statements: vec![stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![stmt],
+            });
+
             // Should be: LoadConst("Enter a number: "), Print, Input([x]), Halt
             assert_eq!(program.instructions.len(), 4);
-            assert!(matches!(&program.instructions[0], Instruction::LoadConst(Value::String(s)) if s == "Enter a number: "));
+            assert!(
+                matches!(&program.instructions[0], Instruction::LoadConst(Value::String(s)) if s == "Enter a number: ")
+            );
             assert!(matches!(program.instructions[1], Instruction::Print));
-            assert!(matches!(&program.instructions[2], Instruction::Input(vars) if vars.len() == 1));
+            assert!(
+                matches!(&program.instructions[2], Instruction::Input(vars) if vars.len() == 1)
+            );
             assert!(matches!(program.instructions[3], Instruction::Halt));
         }
 
@@ -1166,20 +1251,28 @@ mod tests {
                 prompt: None,
                 variables: vec![create_var("x", VariableType::Integer)],
             });
-            let program = compile(ast::Program { statements: vec![stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![stmt],
+            });
+
             // Should be: Input([x]), Halt
             assert_eq!(program.instructions.len(), 2);
-            assert!(matches!(&program.instructions[0], Instruction::Input(vars) if vars.len() == 1));
+            assert!(
+                matches!(&program.instructions[0], Instruction::Input(vars) if vars.len() == 1)
+            );
             assert!(matches!(program.instructions[1], Instruction::Halt));
         }
 
         #[test]
         fn test_compile_metacommands() {
-            let static_stmt = Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Static));
-            let dynamic_stmt = Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Dynamic));
-            let program = compile(ast::Program { statements: vec![static_stmt, dynamic_stmt] });
-            
+            let static_stmt =
+                Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Static));
+            let dynamic_stmt =
+                Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Dynamic));
+            let program = compile(ast::Program {
+                statements: vec![static_stmt, dynamic_stmt],
+            });
+
             assert_eq!(program.instructions.len(), 3); // SetStatic, SetDynamic, Halt
             assert!(matches!(program.instructions[0], Instruction::SetStatic));
             assert!(matches!(program.instructions[1], Instruction::SetDynamic));
@@ -1189,8 +1282,10 @@ mod tests {
         #[test]
         fn test_compile_noop_statement() {
             let stmt = Statement::PlainStatement(PlainStatement::Noop);
-            let program = compile(ast::Program { statements: vec![stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![stmt],
+            });
+
             assert_eq!(program.instructions.len(), 1); // Just Halt
             assert!(matches!(program.instructions[0], Instruction::Halt));
         }
@@ -1205,17 +1300,26 @@ mod tests {
             let if_stmt = Statement::PlainStatement(PlainStatement::If {
                 branches: vec![IfBranch {
                     condition: Some(create_int_expr(1)),
-                    statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("True")))],
+                    statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                        create_string_expr("True"),
+                    ))],
                 }],
             });
-            let program = compile(ast::Program { statements: vec![if_stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![if_stmt],
+            });
+
             // Program structure should be:
             // LoadConst(1), JumpIfFalse(end), LoadConst("True"), Print, end:, Halt
             let instructions = &program.instructions;
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(1))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(1))
+            ));
             assert!(matches!(instructions[1], Instruction::JumpIfFalse(_)));
-            assert!(matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "True"));
+            assert!(
+                matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "True")
+            );
             assert!(matches!(instructions[3], Instruction::Print));
             assert!(matches!(instructions[4], Instruction::Halt));
         }
@@ -1226,24 +1330,37 @@ mod tests {
                 branches: vec![
                     IfBranch {
                         condition: Some(create_int_expr(1)),
-                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("True")))],
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                            create_string_expr("True"),
+                        ))],
                     },
                     IfBranch {
                         condition: None, // ELSE branch
-                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("False")))],
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                            create_string_expr("False"),
+                        ))],
                     },
                 ],
             });
-            let program = compile(ast::Program { statements: vec![if_stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![if_stmt],
+            });
+
             let instructions = &program.instructions;
             // Should have jump structure for if-else
-            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(1))));
+            assert!(matches!(
+                instructions[0],
+                Instruction::LoadConst(Value::Integer(1))
+            ));
             assert!(matches!(instructions[1], Instruction::JumpIfFalse(_)));
-            assert!(matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "True"));
+            assert!(
+                matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "True")
+            );
             assert!(matches!(instructions[3], Instruction::Print));
             assert!(matches!(instructions[4], Instruction::Jump(_))); // Jump to end
-            assert!(matches!(instructions[5], Instruction::LoadConst(Value::String(ref s)) if s == "False"));
+            assert!(
+                matches!(instructions[5], Instruction::LoadConst(Value::String(ref s)) if s == "False")
+            );
             assert!(matches!(instructions[6], Instruction::Print));
             assert!(matches!(instructions[7], Instruction::Halt));
 
@@ -1260,15 +1377,21 @@ mod tests {
         fn test_compile_while_statement() {
             let while_stmt = Statement::PlainStatement(PlainStatement::While {
                 condition: create_var_expr("x", VariableType::Integer),
-                statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Loop")))],
+                statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                    create_string_expr("Loop"),
+                ))],
             });
-            let program = compile(ast::Program { statements: vec![while_stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![while_stmt],
+            });
+
             let instructions = &program.instructions;
             // While loop structure: condition_check:, LoadVar(x), JumpIfFalse(end), LoadConst("Loop"), Print, Jump(condition_check), end:, Halt
             assert!(matches!(instructions[0], Instruction::LoadVar(_)));
             assert!(matches!(instructions[1], Instruction::JumpIfFalse(_)));
-            assert!(matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "Loop"));
+            assert!(
+                matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "Loop")
+            );
             assert!(matches!(instructions[3], Instruction::Print));
             assert!(matches!(instructions[4], Instruction::Jump(_))); // Jump back to condition
             assert!(matches!(instructions[5], Instruction::Halt));
@@ -1283,7 +1406,7 @@ mod tests {
             let mut ctx = CompilerContext::new();
             let label1 = ctx.generate_label();
             let label2 = ctx.generate_label();
-            
+
             assert_eq!(label1, "L0");
             assert_eq!(label2, "L1");
             assert_ne!(label1, label2);
@@ -1294,9 +1417,12 @@ mod tests {
             let mut ctx = CompilerContext::new();
             ctx.emit_instruction(Instruction::LoadConst(Value::Integer(42)));
             ctx.emit_instruction(Instruction::Print);
-            
+
             assert_eq!(ctx.instructions.len(), 2);
-            assert!(matches!(ctx.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(
+                ctx.instructions[0],
+                Instruction::LoadConst(Value::Integer(42))
+            ));
             assert!(matches!(ctx.instructions[1], Instruction::Print));
         }
 
@@ -1304,18 +1430,18 @@ mod tests {
         fn test_jump_patching() {
             let mut ctx = CompilerContext::new();
             let label = "test_label";
-            
+
             // Emit a jump to a label that doesn't exist yet
             ctx.emit_jump(label);
             ctx.emit_instruction(Instruction::Print);
-            
+
             // Place the label
             ctx.place_label(label);
             ctx.emit_instruction(Instruction::Halt);
-            
+
             // Resolve jumps
             ctx.resolve_jumps();
-            
+
             // The jump should now point to the instruction after Print (index 2)
             assert!(matches!(ctx.instructions[0], Instruction::Jump(2)));
             assert!(matches!(ctx.instructions[1], Instruction::Print));
@@ -1325,33 +1451,33 @@ mod tests {
         #[test]
         fn test_loop_context_management() {
             let mut ctx = CompilerContext::new();
-            
+
             // Test empty loop stack
             assert!(ctx.find_loop_end_label("FOR").is_none());
             assert!(ctx.find_loop_end_label("DO").is_none());
-            
+
             // Push a FOR loop context
             ctx.push_loop_context(LoopContext::For {
                 end_label: "for_end".to_string(),
             });
-            
+
             assert_eq!(ctx.find_loop_end_label("FOR"), Some(&"for_end".to_string()));
             assert!(ctx.find_loop_end_label("DO").is_none());
-            
+
             // Push a DO loop context
             ctx.push_loop_context(LoopContext::Do {
                 end_label: "do_end".to_string(),
             });
-            
+
             // Should find the most recent DO loop
             assert_eq!(ctx.find_loop_end_label("DO"), Some(&"do_end".to_string()));
             assert_eq!(ctx.find_loop_end_label("FOR"), Some(&"for_end".to_string()));
-            
+
             // Pop DO context
             ctx.pop_loop_context();
             assert!(ctx.find_loop_end_label("DO").is_none());
             assert_eq!(ctx.find_loop_end_label("FOR"), Some(&"for_end".to_string()));
-            
+
             // Pop FOR context
             ctx.pop_loop_context();
             assert!(ctx.find_loop_end_label("FOR").is_none());
@@ -1376,13 +1502,19 @@ mod tests {
                     target: AssignmentTarget::Variable(create_var("x", VariableType::Integer)),
                     expression: create_int_expr(42),
                 }),
-                Statement::PlainStatement(PlainStatement::Print(create_var_expr("x", VariableType::Integer))),
+                Statement::PlainStatement(PlainStatement::Print(create_var_expr(
+                    "x",
+                    VariableType::Integer,
+                ))),
             ];
             let program = compile(ast::Program { statements });
-            
+
             // Should be: LoadConst(42), StoreVar(x), LoadVar(x), Print, Halt
             assert_eq!(program.instructions.len(), 5);
-            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(
+                program.instructions[0],
+                Instruction::LoadConst(Value::Integer(42))
+            ));
             assert!(matches!(program.instructions[1], Instruction::StoreVar(_)));
             assert!(matches!(program.instructions[2], Instruction::LoadVar(_)));
             assert!(matches!(program.instructions[3], Instruction::Print));
@@ -1396,27 +1528,41 @@ mod tests {
                 branches: vec![
                     IfBranch {
                         condition: Some(create_int_expr(1)),
-                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Branch 1")))],
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                            create_string_expr("Branch 1"),
+                        ))],
                     },
                     IfBranch {
                         condition: Some(create_int_expr(2)),
-                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Branch 2")))],
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                            create_string_expr("Branch 2"),
+                        ))],
                     },
                     IfBranch {
                         condition: None,
-                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Else")))],
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(
+                            create_string_expr("Else"),
+                        ))],
                     },
                 ],
             });
-            let program = compile(ast::Program { statements: vec![if_stmt] });
-            
+            let program = compile(ast::Program {
+                statements: vec![if_stmt],
+            });
+
             // Verify all jump targets are within valid instruction range
             for (i, instruction) in program.instructions.iter().enumerate() {
                 match instruction {
-                    Instruction::Jump(target) | Instruction::JumpIfFalse(target) | Instruction::JumpIfTrue(target) => {
-                        assert!(*target < program.instructions.len(), 
-                               "Jump at index {} has invalid target {}, program has {} instructions", 
-                               i, target, program.instructions.len());
+                    Instruction::Jump(target)
+                    | Instruction::JumpIfFalse(target)
+                    | Instruction::JumpIfTrue(target) => {
+                        assert!(
+                            *target < program.instructions.len(),
+                            "Jump at index {} has invalid target {}, program has {} instructions",
+                            i,
+                            target,
+                            program.instructions.len()
+                        );
                     }
                     _ => {}
                 }

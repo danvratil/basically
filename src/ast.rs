@@ -1322,13 +1322,13 @@ pub enum Metacommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pest::Parser;
     use crate::parser::{BasicParser, Rule};
+    use pest::Parser;
 
     // Helper functions for testing
     fn parse_expr(input: &str) -> Result<Expression, AstError> {
         let pair = BasicParser::parse(Rule::expression, input)
-            .map_err(|e| AstError::InvalidExpression(format!("Parse error: {}", e)))?
+            .map_err(|e| AstError::InvalidExpression(format!("Parse error: {e}")))?
             .next()
             .ok_or_else(|| AstError::InvalidExpression("No expression found".to_string()))?;
         Expression::try_from(pair)
@@ -1336,7 +1336,7 @@ mod tests {
 
     fn parse_logical_expr(input: &str) -> Result<Expression, AstError> {
         let pair = BasicParser::parse(Rule::logical_expression, input)
-            .map_err(|e| AstError::InvalidExpression(format!("Parse error: {}", e)))?
+            .map_err(|e| AstError::InvalidExpression(format!("Parse error: {e}")))?
             .next()
             .ok_or_else(|| AstError::InvalidExpression("No expression found".to_string()))?;
         Expression::try_from(pair)
@@ -1344,7 +1344,7 @@ mod tests {
 
     fn parse_stmt(input: &str) -> Result<Statement, AstError> {
         let pair = BasicParser::parse(Rule::plain_statement, input)
-            .map_err(|e| AstError::InvalidStatement(format!("Parse error: {}", e)))?
+            .map_err(|e| AstError::InvalidStatement(format!("Parse error: {e}")))?
             .next()
             .ok_or_else(|| AstError::InvalidStatement("No statement found".to_string()))?;
         Statement::try_from(pair)
@@ -1369,27 +1369,48 @@ mod tests {
         }
 
         #[test]
+        #[allow(clippy::approx_constant)]
         fn test_float_literals() {
-            assert!(matches!(parse_expr("3.14"), Ok(Expression::Float(f)) if (f - 3.14).abs() < f64::EPSILON));
-            assert!(matches!(parse_expr("0.5"), Ok(Expression::Float(f)) if (f - 0.5).abs() < f64::EPSILON));
-            assert!(matches!(parse_expr(".25"), Ok(Expression::Float(f)) if (f - 0.25).abs() < f64::EPSILON));
+            assert!(
+                matches!(parse_expr("3.14"), Ok(Expression::Float(f)) if (f - 3.14).abs() < f64::EPSILON)
+            );
+            assert!(
+                matches!(parse_expr("0.5"), Ok(Expression::Float(f)) if (f - 0.5).abs() < f64::EPSILON)
+            );
+            assert!(
+                matches!(parse_expr(".25"), Ok(Expression::Float(f)) if (f - 0.25).abs() < f64::EPSILON)
+            );
         }
 
         #[test]
         fn test_string_literals() {
             assert!(matches!(parse_expr("\"Hello\""), Ok(Expression::String(s)) if s == "Hello"));
             assert!(matches!(parse_expr("\"\""), Ok(Expression::String(s)) if s.is_empty()));
-            assert!(matches!(parse_expr("\"Hello World\""), Ok(Expression::String(s)) if s == "Hello World"));
+            assert!(
+                matches!(parse_expr("\"Hello World\""), Ok(Expression::String(s)) if s == "Hello World")
+            );
         }
 
         #[test]
         fn test_variable_expressions() {
-            assert!(matches!(parse_expr("x"), Ok(Expression::Variable(Variable { name, r#type: VariableType::Integer })) if name == "x"));
-            assert!(matches!(parse_expr("name$"), Ok(Expression::Variable(Variable { name, r#type: VariableType::String })) if name == "name"));
-            assert!(matches!(parse_expr("count%"), Ok(Expression::Variable(Variable { name, r#type: VariableType::Integer })) if name == "count"));
-            assert!(matches!(parse_expr("value!"), Ok(Expression::Variable(Variable { name, r#type: VariableType::SinglePrecision })) if name == "value"));
-            assert!(matches!(parse_expr("precise#"), Ok(Expression::Variable(Variable { name, r#type: VariableType::DoublePrecision })) if name == "precise"));
-            assert!(matches!(parse_expr("big&"), Ok(Expression::Variable(Variable { name, r#type: VariableType::Long })) if name == "big"));
+            assert!(
+                matches!(parse_expr("x"), Ok(Expression::Variable(Variable { name, r#type: VariableType::Integer })) if name == "x")
+            );
+            assert!(
+                matches!(parse_expr("name$"), Ok(Expression::Variable(Variable { name, r#type: VariableType::String })) if name == "name")
+            );
+            assert!(
+                matches!(parse_expr("count%"), Ok(Expression::Variable(Variable { name, r#type: VariableType::Integer })) if name == "count")
+            );
+            assert!(
+                matches!(parse_expr("value!"), Ok(Expression::Variable(Variable { name, r#type: VariableType::SinglePrecision })) if name == "value")
+            );
+            assert!(
+                matches!(parse_expr("precise#"), Ok(Expression::Variable(Variable { name, r#type: VariableType::DoublePrecision })) if name == "precise")
+            );
+            assert!(
+                matches!(parse_expr("big&"), Ok(Expression::Variable(Variable { name, r#type: VariableType::Long })) if name == "big")
+            );
         }
 
         #[test]
@@ -1400,7 +1421,7 @@ mod tests {
                     assert_eq!(indices.len(), 1);
                     assert!(matches!(indices[0], Expression::Integer(1)));
                 }
-                _ => panic!("Expected array access")
+                _ => panic!("Expected array access"),
             }
 
             match parse_expr("matrix(1, 2)") {
@@ -1410,136 +1431,194 @@ mod tests {
                     assert!(matches!(indices[0], Expression::Integer(1)));
                     assert!(matches!(indices[1], Expression::Integer(2)));
                 }
-                _ => panic!("Expected 2D array access")
+                _ => panic!("Expected 2D array access"),
             }
         }
 
         #[test]
         fn test_unary_operations() {
             match parse_expr("+5") {
-                Ok(Expression::UnaryOp { op: UnaryOperator::Plus, operand }) => {
+                Ok(Expression::UnaryOp {
+                    op: UnaryOperator::Plus,
+                    operand,
+                }) => {
                     assert!(matches!(*operand, Expression::Integer(5)));
                 }
-                _ => panic!("Expected unary plus")
+                _ => panic!("Expected unary plus"),
             }
 
             match parse_expr("-10") {
-                Ok(Expression::UnaryOp { op: UnaryOperator::Minus, operand }) => {
+                Ok(Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand,
+                }) => {
                     assert!(matches!(*operand, Expression::Integer(10)));
                 }
-                _ => panic!("Expected unary minus")
+                _ => panic!("Expected unary minus"),
             }
         }
 
         #[test]
         fn test_binary_operations() {
             match parse_expr("2 + 3") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Add, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Add,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(2)));
                     assert!(matches!(*right, Expression::Integer(3)));
                 }
-                _ => panic!("Expected addition")
+                _ => panic!("Expected addition"),
             }
 
             match parse_expr("10 - 5") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Subtract, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Subtract,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(10)));
                     assert!(matches!(*right, Expression::Integer(5)));
                 }
-                _ => panic!("Expected subtraction")
+                _ => panic!("Expected subtraction"),
             }
 
             match parse_expr("4 * 6") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Multiply, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Multiply,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(4)));
                     assert!(matches!(*right, Expression::Integer(6)));
                 }
-                _ => panic!("Expected multiplication")
+                _ => panic!("Expected multiplication"),
             }
 
             match parse_expr("8 / 2") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Divide, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Divide,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(8)));
                     assert!(matches!(*right, Expression::Integer(2)));
                 }
-                _ => panic!("Expected division")
+                _ => panic!("Expected division"),
             }
         }
 
         #[test]
         fn test_logical_operations() {
             match parse_logical_expr("true AND false") {
-                Ok(Expression::LogicalOp { left: Some(left), op: LogicalOperator::And, right }) => {
+                Ok(Expression::LogicalOp {
+                    left: Some(left),
+                    op: LogicalOperator::And,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Variable(_)));
                     assert!(matches!(*right, Expression::Variable(_)));
                 }
-                _ => panic!("Expected AND operation")
+                _ => panic!("Expected AND operation"),
             }
 
             match parse_logical_expr("true OR false") {
-                Ok(Expression::LogicalOp { left: Some(left), op: LogicalOperator::Or, right }) => {
+                Ok(Expression::LogicalOp {
+                    left: Some(left),
+                    op: LogicalOperator::Or,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Variable(_)));
                     assert!(matches!(*right, Expression::Variable(_)));
                 }
-                _ => panic!("Expected OR operation")
+                _ => panic!("Expected OR operation"),
             }
 
             match parse_logical_expr("NOT false") {
-                Ok(Expression::LogicalOp { left: None, op: LogicalOperator::Not, right }) => {
+                Ok(Expression::LogicalOp {
+                    left: None,
+                    op: LogicalOperator::Not,
+                    right,
+                }) => {
                     assert!(matches!(*right, Expression::Variable(_)));
                 }
-                _ => panic!("Expected NOT operation")
+                _ => panic!("Expected NOT operation"),
             }
         }
 
         #[test]
         fn test_relational_operations() {
             match parse_logical_expr("5 = 5") {
-                Ok(Expression::RelationalOp { left, op: RelationalOperator::Equal, right }) => {
+                Ok(Expression::RelationalOp {
+                    left,
+                    op: RelationalOperator::Equal,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(5)));
                     assert!(matches!(*right, Expression::Integer(5)));
                 }
-                _ => panic!("Expected equality")
+                _ => panic!("Expected equality"),
             }
 
             match parse_logical_expr("3 < 4") {
-                Ok(Expression::RelationalOp { left, op: RelationalOperator::LessThan, right }) => {
+                Ok(Expression::RelationalOp {
+                    left,
+                    op: RelationalOperator::LessThan,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(3)));
                     assert!(matches!(*right, Expression::Integer(4)));
                 }
-                _ => panic!("Expected less than")
+                _ => panic!("Expected less than"),
             }
 
             match parse_logical_expr("6 > 2") {
-                Ok(Expression::RelationalOp { left, op: RelationalOperator::GreaterThan, right }) => {
+                Ok(Expression::RelationalOp {
+                    left,
+                    op: RelationalOperator::GreaterThan,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(6)));
                     assert!(matches!(*right, Expression::Integer(2)));
                 }
-                _ => panic!("Expected greater than")
+                _ => panic!("Expected greater than"),
             }
 
             match parse_logical_expr("1 <> 2") {
-                Ok(Expression::RelationalOp { left, op: RelationalOperator::NotEqual, right }) => {
+                Ok(Expression::RelationalOp {
+                    left,
+                    op: RelationalOperator::NotEqual,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(1)));
                     assert!(matches!(*right, Expression::Integer(2)));
                 }
-                _ => panic!("Expected not equal")
+                _ => panic!("Expected not equal"),
             }
 
             match parse_logical_expr("5 <= 5") {
-                Ok(Expression::RelationalOp { left, op: RelationalOperator::LessThanEqual, right }) => {
+                Ok(Expression::RelationalOp {
+                    left,
+                    op: RelationalOperator::LessThanEqual,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(5)));
                     assert!(matches!(*right, Expression::Integer(5)));
                 }
-                _ => panic!("Expected less than or equal")
+                _ => panic!("Expected less than or equal"),
             }
 
             match parse_logical_expr("7 >= 6") {
-                Ok(Expression::RelationalOp { left, op: RelationalOperator::GreaterThanEqual, right }) => {
+                Ok(Expression::RelationalOp {
+                    left,
+                    op: RelationalOperator::GreaterThanEqual,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(7)));
                     assert!(matches!(*right, Expression::Integer(6)));
                 }
-                _ => panic!("Expected greater than or equal")
+                _ => panic!("Expected greater than or equal"),
             }
         }
 
@@ -1547,15 +1626,19 @@ mod tests {
         fn test_parentheses() {
             match parse_expr("(5)") {
                 Ok(Expression::Integer(5)) => {}
-                _ => panic!("Expected parenthesized integer")
+                _ => panic!("Expected parenthesized integer"),
             }
 
             match parse_expr("(2 + 3)") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Add, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Add,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(2)));
                     assert!(matches!(*right, Expression::Integer(3)));
                 }
-                _ => panic!("Expected parenthesized addition")
+                _ => panic!("Expected parenthesized addition"),
             }
         }
     }
@@ -1567,84 +1650,117 @@ mod tests {
         fn test_print_statement() {
             match parse_stmt("PRINT 42") {
                 Ok(Statement::PlainStatement(PlainStatement::Print(Expression::Integer(42)))) => {}
-                _ => panic!("Expected print statement with integer")
+                _ => panic!("Expected print statement with integer"),
             }
 
             match parse_stmt("PRINT \"Hello\"") {
-                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::String(s)))) if s == "Hello" => {}
-                _ => panic!("Expected print statement with string")
+                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::String(s))))
+                    if s == "Hello" => {}
+                _ => panic!("Expected print statement with string"),
             }
 
             match parse_stmt("PRINT x") {
-                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::Variable(Variable { name, .. })))) if name == "x" => {}
-                _ => panic!("Expected print statement with variable")
+                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::Variable(
+                    Variable { name, .. },
+                )))) if name == "x" => {}
+                _ => panic!("Expected print statement with variable"),
             }
         }
 
         #[test]
         fn test_assignment_statement() {
             match parse_stmt("x = 42") {
-                Ok(Statement::PlainStatement(PlainStatement::Assignment { target: AssignmentTarget::Variable(Variable { name, .. }), expression: Expression::Integer(42) })) if name == "x" => {}
-                _ => panic!("Expected variable assignment")
+                Ok(Statement::PlainStatement(PlainStatement::Assignment {
+                    target: AssignmentTarget::Variable(Variable { name, .. }),
+                    expression: Expression::Integer(42),
+                })) if name == "x" => {}
+                _ => panic!("Expected variable assignment"),
             }
 
             match parse_stmt("arr(1) = 5") {
-                Ok(Statement::PlainStatement(PlainStatement::Assignment { target: AssignmentTarget::ArrayElement(ArrayAccess { name, .. }), expression: Expression::Integer(5) })) if name == "arr" => {}
-                _ => panic!("Expected array element assignment")
+                Ok(Statement::PlainStatement(PlainStatement::Assignment {
+                    target: AssignmentTarget::ArrayElement(ArrayAccess { name, .. }),
+                    expression: Expression::Integer(5),
+                })) if name == "arr" => {}
+                _ => panic!("Expected array element assignment"),
             }
 
             match parse_stmt("name$ = \"John\"") {
-                Ok(Statement::PlainStatement(PlainStatement::Assignment { target: AssignmentTarget::Variable(Variable { name, r#type: VariableType::String }), expression: Expression::String(s) })) if name == "name" && s == "John" => {}
-                _ => panic!("Expected string variable assignment")
+                Ok(Statement::PlainStatement(PlainStatement::Assignment {
+                    target:
+                        AssignmentTarget::Variable(Variable {
+                            name,
+                            r#type: VariableType::String,
+                        }),
+                    expression: Expression::String(s),
+                })) if name == "name" && s == "John" => {}
+                _ => panic!("Expected string variable assignment"),
             }
         }
 
         #[test]
         fn test_input_statement() {
             match parse_stmt("INPUT x") {
-                Ok(Statement::PlainStatement(PlainStatement::Input { prompt: None, variables })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Input {
+                    prompt: None,
+                    variables,
+                })) => {
                     assert_eq!(variables.len(), 1);
                     assert_eq!(variables[0].name, "x");
                 }
-                _ => panic!("Expected input statement")
+                _ => panic!("Expected input statement"),
             }
 
             match parse_stmt("INPUT \"Enter name: \"; name$") {
-                Ok(Statement::PlainStatement(PlainStatement::Input { prompt: Some(p), variables })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Input {
+                    prompt: Some(p),
+                    variables,
+                })) => {
                     assert_eq!(p, "Enter name: ");
                     assert_eq!(variables.len(), 1);
                     assert_eq!(variables[0].name, "name");
                     assert_eq!(variables[0].r#type, VariableType::String);
                 }
-                _ => panic!("Expected input statement with prompt")
+                _ => panic!("Expected input statement with prompt"),
             }
 
             match parse_stmt("INPUT x, y, z") {
-                Ok(Statement::PlainStatement(PlainStatement::Input { prompt: None, variables })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Input {
+                    prompt: None,
+                    variables,
+                })) => {
                     assert_eq!(variables.len(), 3);
                     assert_eq!(variables[0].name, "x");
                     assert_eq!(variables[1].name, "y");
                     assert_eq!(variables[2].name, "z");
                 }
-                _ => panic!("Expected multi-variable input")
+                _ => panic!("Expected multi-variable input"),
             }
         }
 
         #[test]
         fn test_dim_statement() {
             match parse_stmt("DIM arr(10)") {
-                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration { name, element_type, dimensions }))) => {
+                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration {
+                    name,
+                    element_type,
+                    dimensions,
+                }))) => {
                     assert_eq!(name, "arr");
                     assert_eq!(element_type, VariableType::Integer);
                     assert_eq!(dimensions.len(), 1);
                     assert!(dimensions[0].lower.is_none());
                     assert!(matches!(dimensions[0].upper, Expression::Integer(10)));
                 }
-                _ => panic!("Expected DIM statement")
+                _ => panic!("Expected DIM statement"),
             }
 
             match parse_stmt("DIM matrix(1 TO 10, 1 TO 5) AS INTEGER") {
-                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration { name, element_type, dimensions }))) => {
+                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration {
+                    name,
+                    element_type,
+                    dimensions,
+                }))) => {
                     assert_eq!(name, "matrix");
                     assert_eq!(element_type, VariableType::Integer);
                     assert_eq!(dimensions.len(), 2);
@@ -1653,16 +1769,20 @@ mod tests {
                     assert!(dimensions[1].lower.is_some());
                     assert!(matches!(dimensions[1].upper, Expression::Integer(5)));
                 }
-                _ => panic!("Expected 2D DIM statement with bounds")
+                _ => panic!("Expected 2D DIM statement with bounds"),
             }
 
             match parse_stmt("DIM names(100) AS STRING") {
-                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration { name, element_type, dimensions }))) => {
+                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration {
+                    name,
+                    element_type,
+                    dimensions,
+                }))) => {
                     assert_eq!(name, "names");
                     assert_eq!(element_type, VariableType::String);
                     assert_eq!(dimensions.len(), 1);
                 }
-                _ => panic!("Expected string array DIM")
+                _ => panic!("Expected string array DIM"),
             }
         }
 
@@ -1670,22 +1790,25 @@ mod tests {
         fn test_comment_statement() {
             match parse_stmt("REM This is a comment") {
                 Ok(Statement::PlainStatement(PlainStatement::Noop)) => {}
-                _ => panic!("Expected noop for regular comment")
+                _ => panic!("Expected noop for regular comment"),
             }
 
             match parse_stmt("' This is also a comment") {
                 Ok(Statement::PlainStatement(PlainStatement::Noop)) => {}
-                _ => panic!("Expected noop for apostrophe comment")
+                _ => panic!("Expected noop for apostrophe comment"),
             }
 
             match parse_stmt("REM $STATIC") {
-                Ok(Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Static))) => {}
-                _ => panic!("Expected static metacommand")
+                Ok(Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Static))) => {
+                }
+                _ => panic!("Expected static metacommand"),
             }
 
             match parse_stmt("' $DYNAMIC") {
-                Ok(Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Dynamic))) => {}
-                _ => panic!("Expected dynamic metacommand")
+                Ok(Statement::PlainStatement(PlainStatement::Metacommand(
+                    Metacommand::Dynamic,
+                ))) => {}
+                _ => panic!("Expected dynamic metacommand"),
             }
         }
 
@@ -1693,12 +1816,12 @@ mod tests {
         fn test_exit_statements() {
             match parse_stmt("EXIT DO") {
                 Ok(Statement::PlainStatement(PlainStatement::ExitDo)) => {}
-                _ => panic!("Expected EXIT DO")
+                _ => panic!("Expected EXIT DO"),
             }
 
             match parse_stmt("EXIT FOR") {
                 Ok(Statement::PlainStatement(PlainStatement::ExitFor)) => {}
-                _ => panic!("Expected EXIT FOR")
+                _ => panic!("Expected EXIT FOR"),
             }
         }
     }
@@ -1710,32 +1833,48 @@ mod tests {
         fn test_arithmetic_precedence() {
             // Test that multiplication has higher precedence than addition
             match parse_expr("2 + 3 * 4") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Add, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Add,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(2)));
                     match *right {
-                        Expression::BinaryOp { ref left, op: BinaryOperator::Multiply, ref right } => {
+                        Expression::BinaryOp {
+                            ref left,
+                            op: BinaryOperator::Multiply,
+                            ref right,
+                        } => {
                             assert!(matches!(**left, Expression::Integer(3)));
                             assert!(matches!(**right, Expression::Integer(4)));
                         }
-                        _ => panic!("Expected multiplication as right operand")
+                        _ => panic!("Expected multiplication as right operand"),
                     }
                 }
-                _ => panic!("Expected addition with multiplication")
+                _ => panic!("Expected addition with multiplication"),
             }
 
             // Test that division has higher precedence than subtraction
             match parse_expr("10 - 8 / 2") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Subtract, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Subtract,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Integer(10)));
                     match *right {
-                        Expression::BinaryOp { ref left, op: BinaryOperator::Divide, ref right } => {
+                        Expression::BinaryOp {
+                            ref left,
+                            op: BinaryOperator::Divide,
+                            ref right,
+                        } => {
                             assert!(matches!(**left, Expression::Integer(8)));
                             assert!(matches!(**right, Expression::Integer(2)));
                         }
-                        _ => panic!("Expected division as right operand")
+                        _ => panic!("Expected division as right operand"),
                     }
                 }
-                _ => panic!("Expected subtraction with division")
+                _ => panic!("Expected subtraction with division"),
             }
         }
 
@@ -1743,17 +1882,25 @@ mod tests {
         fn test_arithmetic_associativity() {
             // Test left-to-right associativity for same precedence
             match parse_expr("8 / 4 / 2") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Divide, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Divide,
+                    right,
+                }) => {
                     match *left {
-                        Expression::BinaryOp { ref left, op: BinaryOperator::Divide, ref right } => {
+                        Expression::BinaryOp {
+                            ref left,
+                            op: BinaryOperator::Divide,
+                            ref right,
+                        } => {
                             assert!(matches!(**left, Expression::Integer(8)));
                             assert!(matches!(**right, Expression::Integer(4)));
                         }
-                        _ => panic!("Expected division as left operand")
+                        _ => panic!("Expected division as left operand"),
                     }
                     assert!(matches!(*right, Expression::Integer(2)));
                 }
-                _ => panic!("Expected left-associative division")
+                _ => panic!("Expected left-associative division"),
             }
         }
 
@@ -1761,17 +1908,25 @@ mod tests {
         fn test_logical_precedence() {
             // Test that AND has higher precedence than OR
             match parse_logical_expr("a OR b AND c") {
-                Ok(Expression::LogicalOp { left: Some(left), op: LogicalOperator::Or, right }) => {
+                Ok(Expression::LogicalOp {
+                    left: Some(left),
+                    op: LogicalOperator::Or,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::Variable(_)));
                     match *right {
-                        Expression::LogicalOp { left: Some(ref left), op: LogicalOperator::And, ref right } => {
+                        Expression::LogicalOp {
+                            left: Some(ref left),
+                            op: LogicalOperator::And,
+                            ref right,
+                        } => {
                             assert!(matches!(**left, Expression::Variable(_)));
                             assert!(matches!(**right, Expression::Variable(_)));
                         }
-                        _ => panic!("Expected AND as right operand")
+                        _ => panic!("Expected AND as right operand"),
                     }
                 }
-                _ => panic!("Expected OR with AND")
+                _ => panic!("Expected OR with AND"),
             }
         }
 
@@ -1779,17 +1934,25 @@ mod tests {
         fn test_parentheses_override_precedence() {
             // Test that parentheses override operator precedence
             match parse_expr("(2 + 3) * 4") {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Multiply, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Multiply,
+                    right,
+                }) => {
                     match *left {
-                        Expression::BinaryOp { ref left, op: BinaryOperator::Add, ref right } => {
+                        Expression::BinaryOp {
+                            ref left,
+                            op: BinaryOperator::Add,
+                            ref right,
+                        } => {
                             assert!(matches!(**left, Expression::Integer(2)));
                             assert!(matches!(**right, Expression::Integer(3)));
                         }
-                        _ => panic!("Expected addition as left operand")
+                        _ => panic!("Expected addition as left operand"),
                     }
                     assert!(matches!(*right, Expression::Integer(4)));
                 }
-                _ => panic!("Expected multiplication with parenthesized addition")
+                _ => panic!("Expected multiplication with parenthesized addition"),
             }
         }
     }
@@ -1800,17 +1963,35 @@ mod tests {
         #[test]
         fn test_variable_name_validation() {
             // Valid variable names
-            assert!(Variable::try_from(
-                BasicParser::parse(Rule::variable, "x").unwrap().next().unwrap()
-            ).is_ok());
-            
-            assert!(Variable::try_from(
-                BasicParser::parse(Rule::variable, "var123").unwrap().next().unwrap()
-            ).is_ok());
-            
-            assert!(Variable::try_from(
-                BasicParser::parse(Rule::variable, "MyVariable").unwrap().next().unwrap()
-            ).is_ok());
+            assert!(
+                Variable::try_from(
+                    BasicParser::parse(Rule::variable, "x")
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                )
+                .is_ok()
+            );
+
+            assert!(
+                Variable::try_from(
+                    BasicParser::parse(Rule::variable, "var123")
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                )
+                .is_ok()
+            );
+
+            assert!(
+                Variable::try_from(
+                    BasicParser::parse(Rule::variable, "MyVariable")
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                )
+                .is_ok()
+            );
         }
 
         #[test]
@@ -1826,10 +2007,13 @@ mod tests {
 
             for (input, expected_type) in tests {
                 match Variable::try_from(
-                    BasicParser::parse(Rule::variable, input).unwrap().next().unwrap()
+                    BasicParser::parse(Rule::variable, input)
+                        .unwrap()
+                        .next()
+                        .unwrap(),
                 ) {
                     Ok(Variable { r#type, .. }) => assert_eq!(r#type, expected_type),
-                    Err(_) => panic!("Failed to parse variable: {}", input)
+                    Err(_) => panic!("Failed to parse variable: {input}"),
                 }
             }
         }
@@ -1838,19 +2022,25 @@ mod tests {
         fn test_array_access_parsing() {
             // Single dimension
             match ArrayAccess::try_from(
-                BasicParser::parse(Rule::array_access, "arr(5)").unwrap().next().unwrap()
+                BasicParser::parse(Rule::array_access, "arr(5)")
+                    .unwrap()
+                    .next()
+                    .unwrap(),
             ) {
                 Ok(ArrayAccess { name, indices }) => {
                     assert_eq!(name, "arr");
                     assert_eq!(indices.len(), 1);
                     assert!(matches!(indices[0], Expression::Integer(5)));
                 }
-                Err(_) => panic!("Failed to parse single-dimension array access")
+                Err(_) => panic!("Failed to parse single-dimension array access"),
             }
 
             // Multi-dimensional
             match ArrayAccess::try_from(
-                BasicParser::parse(Rule::array_access, "matrix(i, j)").unwrap().next().unwrap()
+                BasicParser::parse(Rule::array_access, "matrix(i, j)")
+                    .unwrap()
+                    .next()
+                    .unwrap(),
             ) {
                 Ok(ArrayAccess { name, indices }) => {
                     assert_eq!(name, "matrix");
@@ -1858,7 +2048,7 @@ mod tests {
                     assert!(matches!(indices[0], Expression::Variable(_)));
                     assert!(matches!(indices[1], Expression::Variable(_)));
                 }
-                Err(_) => panic!("Failed to parse multi-dimensional array access")
+                Err(_) => panic!("Failed to parse multi-dimensional array access"),
             }
         }
 
@@ -1866,12 +2056,18 @@ mod tests {
         fn test_variable_name_constraints() {
             // Test empty name (should be caught by grammar, but test the Variable constructor)
             let result = Variable::try_from(
-                BasicParser::parse(Rule::variable, "x").unwrap().next().unwrap()
+                BasicParser::parse(Rule::variable, "x")
+                    .unwrap()
+                    .next()
+                    .unwrap(),
             );
             assert!(result.is_ok());
 
             // The grammar should prevent invalid names, but we can test the Variable validation
-            let _var = Variable { name: "".to_string(), r#type: VariableType::Integer };
+            let _var = Variable {
+                name: "".to_string(),
+                r#type: VariableType::Integer,
+            };
             // This tests the internal validation logic
         }
     }
@@ -1924,7 +2120,7 @@ mod tests {
         fn test_empty_program() {
             match parse_program("") {
                 Ok(Program { statements }) => assert!(statements.is_empty()),
-                Err(_) => panic!("Empty program should be valid")
+                Err(_) => panic!("Empty program should be valid"),
             }
         }
     }
@@ -1937,8 +2133,11 @@ mod tests {
             // Test complex nested expression
             let input = "((a + b) * c) - (d / (e + f))";
             match parse_expr(input) {
-                Ok(Expression::BinaryOp { op: BinaryOperator::Subtract, .. }) => {}
-                _ => panic!("Expected complex subtraction expression")
+                Ok(Expression::BinaryOp {
+                    op: BinaryOperator::Subtract,
+                    ..
+                }) => {}
+                _ => panic!("Expected complex subtraction expression"),
             }
         }
 
@@ -1947,8 +2146,11 @@ mod tests {
             // Test expression with arithmetic, logical, and relational operators
             let input = "x + 1 > y AND z < 10";
             match parse_logical_expr(input) {
-                Ok(Expression::LogicalOp { op: LogicalOperator::And, .. }) => {}
-                _ => panic!("Expected logical AND with relational operands")
+                Ok(Expression::LogicalOp {
+                    op: LogicalOperator::And,
+                    ..
+                }) => {}
+                _ => panic!("Expected logical AND with relational operands"),
             }
         }
 
@@ -1957,11 +2159,15 @@ mod tests {
             // Test array access within larger expressions
             let input = "arr(i + 1) * 2";
             match parse_expr(input) {
-                Ok(Expression::BinaryOp { left, op: BinaryOperator::Multiply, right }) => {
+                Ok(Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Multiply,
+                    right,
+                }) => {
                     assert!(matches!(*left, Expression::ArrayAccess(_)));
                     assert!(matches!(*right, Expression::Integer(2)));
                 }
-                _ => panic!("Expected multiplication with array access")
+                _ => panic!("Expected multiplication with array access"),
             }
         }
 
@@ -1971,11 +2177,20 @@ mod tests {
             match parse_program(input) {
                 Ok(Program { statements }) => {
                     assert_eq!(statements.len(), 3);
-                    assert!(matches!(statements[0], Statement::PlainStatement(PlainStatement::Assignment { .. })));
-                    assert!(matches!(statements[1], Statement::PlainStatement(PlainStatement::Print(_))));
-                    assert!(matches!(statements[2], Statement::PlainStatement(PlainStatement::Assignment { .. })));
+                    assert!(matches!(
+                        statements[0],
+                        Statement::PlainStatement(PlainStatement::Assignment { .. })
+                    ));
+                    assert!(matches!(
+                        statements[1],
+                        Statement::PlainStatement(PlainStatement::Print(_))
+                    ));
+                    assert!(matches!(
+                        statements[2],
+                        Statement::PlainStatement(PlainStatement::Assignment { .. })
+                    ));
                 }
-                _ => panic!("Expected multi-statement program")
+                _ => panic!("Expected multi-statement program"),
             }
         }
 
@@ -1986,11 +2201,20 @@ mod tests {
                 Ok(Program { statements }) => {
                     // Comments are parsed as separate statements (Noop)
                     assert_eq!(statements.len(), 3); // assignment, comment (noop), print
-                    assert!(matches!(statements[0], Statement::PlainStatement(PlainStatement::Assignment { .. })));
-                    assert!(matches!(statements[1], Statement::PlainStatement(PlainStatement::Noop)));
-                    assert!(matches!(statements[2], Statement::PlainStatement(PlainStatement::Print(_))));
+                    assert!(matches!(
+                        statements[0],
+                        Statement::PlainStatement(PlainStatement::Assignment { .. })
+                    ));
+                    assert!(matches!(
+                        statements[1],
+                        Statement::PlainStatement(PlainStatement::Noop)
+                    ));
+                    assert!(matches!(
+                        statements[2],
+                        Statement::PlainStatement(PlainStatement::Print(_))
+                    ));
                 }
-                _ => panic!("Expected program with inline comments")
+                _ => panic!("Expected program with inline comments"),
             }
         }
 
@@ -2005,7 +2229,7 @@ mod tests {
                     assert!(matches!(indices[0], Expression::ArrayAccess(_)));
                     assert!(matches!(indices[1], Expression::BinaryOp { .. }));
                 }
-                _ => panic!("Expected nested array access")
+                _ => panic!("Expected nested array access"),
             }
         }
 
@@ -2014,11 +2238,14 @@ mod tests {
             // Test assignment with complex right-hand side
             let input = "result = (a + b) * c - arr(i)";
             match parse_stmt(input) {
-                Ok(Statement::PlainStatement(PlainStatement::Assignment { target, expression })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Assignment {
+                    target,
+                    expression,
+                })) => {
                     assert!(matches!(target, AssignmentTarget::Variable(_)));
                     assert!(matches!(expression, Expression::BinaryOp { .. }));
                 }
-                _ => panic!("Expected complex assignment")
+                _ => panic!("Expected complex assignment"),
             }
         }
     }

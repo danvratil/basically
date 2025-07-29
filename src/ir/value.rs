@@ -261,12 +261,27 @@ mod tests {
 
         #[test]
         fn test_as_variable_type() {
-            assert_eq!(Value::String("test".to_string()).as_variable_type(), ast::VariableType::String);
-            assert_eq!(Value::SinglePrecision(1.0).as_variable_type(), ast::VariableType::SinglePrecision);
-            assert_eq!(Value::DoublePrecision(1.0).as_variable_type(), ast::VariableType::DoublePrecision);
-            assert_eq!(Value::Integer(1).as_variable_type(), ast::VariableType::Integer);
+            assert_eq!(
+                Value::String("test".to_string()).as_variable_type(),
+                ast::VariableType::String
+            );
+            assert_eq!(
+                Value::SinglePrecision(1.0).as_variable_type(),
+                ast::VariableType::SinglePrecision
+            );
+            assert_eq!(
+                Value::DoublePrecision(1.0).as_variable_type(),
+                ast::VariableType::DoublePrecision
+            );
+            assert_eq!(
+                Value::Integer(1).as_variable_type(),
+                ast::VariableType::Integer
+            );
             assert_eq!(Value::Long(1).as_variable_type(), ast::VariableType::Long);
-            assert_eq!(Value::Boolean(true).as_variable_type(), ast::VariableType::Integer);
+            assert_eq!(
+                Value::Boolean(true).as_variable_type(),
+                ast::VariableType::Integer
+            );
         }
 
         #[test]
@@ -295,13 +310,17 @@ mod tests {
 
             // Integer + SinglePrecision
             assert_eq!(
-                Value::Integer(5).checked_add(&Value::SinglePrecision(3.5)).unwrap(),
+                Value::Integer(5)
+                    .checked_add(&Value::SinglePrecision(3.5))
+                    .unwrap(),
                 Some(Value::SinglePrecision(8.5))
             );
 
             // Integer + DoublePrecision
             assert_eq!(
-                Value::Integer(5).checked_add(&Value::DoublePrecision(3.5)).unwrap(),
+                Value::Integer(5)
+                    .checked_add(&Value::DoublePrecision(3.5))
+                    .unwrap(),
                 Some(Value::DoublePrecision(8.5))
             );
         }
@@ -322,13 +341,17 @@ mod tests {
 
             // Long + SinglePrecision
             assert_eq!(
-                Value::Long(5).checked_add(&Value::SinglePrecision(3.5)).unwrap(),
+                Value::Long(5)
+                    .checked_add(&Value::SinglePrecision(3.5))
+                    .unwrap(),
                 Some(Value::SinglePrecision(8.5))
             );
 
             // Long + DoublePrecision
             assert_eq!(
-                Value::Long(5).checked_add(&Value::DoublePrecision(3.5)).unwrap(),
+                Value::Long(5)
+                    .checked_add(&Value::DoublePrecision(3.5))
+                    .unwrap(),
                 Some(Value::DoublePrecision(8.5))
             );
         }
@@ -337,24 +360,32 @@ mod tests {
         fn test_float_addition() {
             // SinglePrecision + Integer
             assert_eq!(
-                Value::SinglePrecision(5.5).checked_add(&Value::Integer(3)).unwrap(),
+                Value::SinglePrecision(5.5)
+                    .checked_add(&Value::Integer(3))
+                    .unwrap(),
                 Some(Value::SinglePrecision(8.5))
             );
 
             // SinglePrecision + Long
             assert_eq!(
-                Value::SinglePrecision(5.5).checked_add(&Value::Long(3)).unwrap(),
+                Value::SinglePrecision(5.5)
+                    .checked_add(&Value::Long(3))
+                    .unwrap(),
                 Some(Value::SinglePrecision(8.5))
             );
 
             // SinglePrecision + SinglePrecision
             assert_eq!(
-                Value::SinglePrecision(5.5).checked_add(&Value::SinglePrecision(3.2)).unwrap(),
+                Value::SinglePrecision(5.5)
+                    .checked_add(&Value::SinglePrecision(3.2))
+                    .unwrap(),
                 Some(Value::SinglePrecision(8.7))
             );
 
             // SinglePrecision + DoublePrecision (promotes to double)
-            let result = Value::SinglePrecision(5.5).checked_add(&Value::DoublePrecision(3.2)).unwrap();
+            let result = Value::SinglePrecision(5.5)
+                .checked_add(&Value::DoublePrecision(3.2))
+                .unwrap();
             if let Some(Value::DoublePrecision(val)) = result {
                 assert!((val - 8.7).abs() < 1e-6); // Account for floating point precision
             } else {
@@ -366,18 +397,24 @@ mod tests {
         fn test_double_addition() {
             // DoublePrecision + Integer
             assert_eq!(
-                Value::DoublePrecision(5.5).checked_add(&Value::Integer(3)).unwrap(),
+                Value::DoublePrecision(5.5)
+                    .checked_add(&Value::Integer(3))
+                    .unwrap(),
                 Some(Value::DoublePrecision(8.5))
             );
 
             // DoublePrecision + Long
             assert_eq!(
-                Value::DoublePrecision(5.5).checked_add(&Value::Long(3)).unwrap(),
+                Value::DoublePrecision(5.5)
+                    .checked_add(&Value::Long(3))
+                    .unwrap(),
                 Some(Value::DoublePrecision(8.5))
             );
 
             // DoublePrecision + SinglePrecision
-            let result = Value::DoublePrecision(5.5).checked_add(&Value::SinglePrecision(3.2)).unwrap();
+            let result = Value::DoublePrecision(5.5)
+                .checked_add(&Value::SinglePrecision(3.2))
+                .unwrap();
             if let Some(Value::DoublePrecision(val)) = result {
                 assert!((val - 8.7).abs() < 1e-6); // Account for floating point precision
             } else {
@@ -385,7 +422,9 @@ mod tests {
             }
 
             // DoublePrecision + DoublePrecision
-            let result = Value::DoublePrecision(5.5).checked_add(&Value::DoublePrecision(3.2)).unwrap();
+            let result = Value::DoublePrecision(5.5)
+                .checked_add(&Value::DoublePrecision(3.2))
+                .unwrap();
             if let Some(Value::DoublePrecision(val)) = result {
                 assert!((val - 8.7).abs() < 1e-6); // Account for floating point precision
             } else {
@@ -397,7 +436,9 @@ mod tests {
         fn test_string_addition() {
             // String + String (concatenation)
             assert_eq!(
-                Value::String("Hello".to_string()).checked_add(&Value::String(" World".to_string())).unwrap(),
+                Value::String("Hello".to_string())
+                    .checked_add(&Value::String(" World".to_string()))
+                    .unwrap(),
                 Some(Value::String("Hello World".to_string()))
             );
         }
@@ -406,7 +447,9 @@ mod tests {
         fn test_integer_overflow() {
             // Integer overflow returns None
             assert_eq!(
-                Value::Integer(i16::MAX).checked_add(&Value::Integer(1)).unwrap(),
+                Value::Integer(i16::MAX)
+                    .checked_add(&Value::Integer(1))
+                    .unwrap(),
                 None
             );
 
@@ -425,7 +468,7 @@ mod tests {
                     assert_eq!(left, "string");
                     assert_eq!(right, "integer");
                 }
-                _ => panic!("Expected type mismatch error")
+                _ => panic!("Expected type mismatch error"),
             }
 
             // Boolean + Integer should error
@@ -434,7 +477,7 @@ mod tests {
                     assert_eq!(left, "boolean");
                     assert_eq!(right, "integer");
                 }
-                _ => panic!("Expected type mismatch error")
+                _ => panic!("Expected type mismatch error"),
             }
         }
     }
@@ -455,12 +498,16 @@ mod tests {
             );
 
             assert_eq!(
-                Value::Integer(8).checked_sub(&Value::SinglePrecision(3.5)).unwrap(),
+                Value::Integer(8)
+                    .checked_sub(&Value::SinglePrecision(3.5))
+                    .unwrap(),
                 Some(Value::SinglePrecision(4.5))
             );
 
             assert_eq!(
-                Value::Integer(8).checked_sub(&Value::DoublePrecision(3.5)).unwrap(),
+                Value::Integer(8)
+                    .checked_sub(&Value::DoublePrecision(3.5))
+                    .unwrap(),
                 Some(Value::DoublePrecision(4.5))
             );
         }
@@ -468,11 +515,15 @@ mod tests {
         #[test]
         fn test_float_subtraction() {
             assert_eq!(
-                Value::SinglePrecision(8.5).checked_sub(&Value::Integer(3)).unwrap(),
+                Value::SinglePrecision(8.5)
+                    .checked_sub(&Value::Integer(3))
+                    .unwrap(),
                 Some(Value::SinglePrecision(5.5))
             );
 
-            let result = Value::DoublePrecision(8.5).checked_sub(&Value::SinglePrecision(3.2)).unwrap();
+            let result = Value::DoublePrecision(8.5)
+                .checked_sub(&Value::SinglePrecision(3.2))
+                .unwrap();
             if let Some(Value::DoublePrecision(val)) = result {
                 assert!((val - 5.3).abs() < 1e-6); // Account for floating point precision
             } else {
@@ -483,7 +534,9 @@ mod tests {
         #[test]
         fn test_integer_underflow() {
             assert_eq!(
-                Value::Integer(i16::MIN).checked_sub(&Value::Integer(1)).unwrap(),
+                Value::Integer(i16::MIN)
+                    .checked_sub(&Value::Integer(1))
+                    .unwrap(),
                 None
             );
         }
@@ -492,7 +545,7 @@ mod tests {
         fn test_subtraction_type_mismatch() {
             match Value::String("test".to_string()).checked_sub(&Value::Integer(5)) {
                 Err(VMError::TypeMismatch(_, _)) => {}
-                _ => panic!("Expected type mismatch error")
+                _ => panic!("Expected type mismatch error"),
             }
         }
     }
@@ -513,7 +566,9 @@ mod tests {
             );
 
             assert_eq!(
-                Value::Integer(5).checked_mul(&Value::SinglePrecision(2.5)).unwrap(),
+                Value::Integer(5)
+                    .checked_mul(&Value::SinglePrecision(2.5))
+                    .unwrap(),
                 Some(Value::SinglePrecision(12.5))
             );
         }
@@ -521,12 +576,16 @@ mod tests {
         #[test]
         fn test_float_multiplication() {
             assert_eq!(
-                Value::SinglePrecision(2.5).checked_mul(&Value::Integer(4)).unwrap(),
+                Value::SinglePrecision(2.5)
+                    .checked_mul(&Value::Integer(4))
+                    .unwrap(),
                 Some(Value::SinglePrecision(10.0))
             );
 
             assert_eq!(
-                Value::DoublePrecision(2.5).checked_mul(&Value::DoublePrecision(3.0)).unwrap(),
+                Value::DoublePrecision(2.5)
+                    .checked_mul(&Value::DoublePrecision(3.0))
+                    .unwrap(),
                 Some(Value::DoublePrecision(7.5))
             );
         }
@@ -535,7 +594,9 @@ mod tests {
         fn test_multiplication_overflow() {
             // Test integer overflow
             assert_eq!(
-                Value::Integer(i16::MAX).checked_mul(&Value::Integer(2)).unwrap(),
+                Value::Integer(i16::MAX)
+                    .checked_mul(&Value::Integer(2))
+                    .unwrap(),
                 None
             );
         }
@@ -544,7 +605,7 @@ mod tests {
         fn test_multiplication_type_mismatch() {
             match Value::String("test".to_string()).checked_mul(&Value::Integer(5)) {
                 Err(VMError::TypeMismatch(_, _)) => {}
-                _ => panic!("Expected type mismatch error")
+                _ => panic!("Expected type mismatch error"),
             }
         }
     }
@@ -565,7 +626,9 @@ mod tests {
             );
 
             assert_eq!(
-                Value::Integer(15).checked_div(&Value::SinglePrecision(2.5)).unwrap(),
+                Value::Integer(15)
+                    .checked_div(&Value::SinglePrecision(2.5))
+                    .unwrap(),
                 Some(Value::SinglePrecision(6.0))
             );
         }
@@ -573,12 +636,16 @@ mod tests {
         #[test]
         fn test_float_division() {
             assert_eq!(
-                Value::SinglePrecision(7.5).checked_div(&Value::Integer(3)).unwrap(),
+                Value::SinglePrecision(7.5)
+                    .checked_div(&Value::Integer(3))
+                    .unwrap(),
                 Some(Value::SinglePrecision(2.5))
             );
 
             assert_eq!(
-                Value::DoublePrecision(9.0).checked_div(&Value::DoublePrecision(3.0)).unwrap(),
+                Value::DoublePrecision(9.0)
+                    .checked_div(&Value::DoublePrecision(3.0))
+                    .unwrap(),
                 Some(Value::DoublePrecision(3.0))
             );
         }
@@ -591,17 +658,14 @@ mod tests {
                 None
             );
 
-            assert_eq!(
-                Value::Long(5).checked_div(&Value::Long(0)).unwrap(),
-                None
-            );
+            assert_eq!(Value::Long(5).checked_div(&Value::Long(0)).unwrap(), None);
         }
 
         #[test]
         fn test_division_type_mismatch() {
             match Value::String("test".to_string()).checked_div(&Value::Integer(5)) {
                 Err(VMError::TypeMismatch(_, _)) => {}
-                _ => panic!("Expected type mismatch error")
+                _ => panic!("Expected type mismatch error"),
             }
         }
     }
@@ -646,7 +710,9 @@ mod tests {
         #[test]
         fn test_floating_point_precision() {
             // Test that floating point operations work as expected
-            let result = Value::SinglePrecision(0.1).checked_add(&Value::SinglePrecision(0.2)).unwrap();
+            let result = Value::SinglePrecision(0.1)
+                .checked_add(&Value::SinglePrecision(0.2))
+                .unwrap();
             if let Some(Value::SinglePrecision(val)) = result {
                 assert!((val - 0.3).abs() < f32::EPSILON * 10.0); // Account for floating point precision
             } else {
@@ -661,10 +727,14 @@ mod tests {
             let long_result = int_val.checked_add(&Value::Long(3)).unwrap();
             assert!(matches!(long_result, Some(Value::Long(8))));
 
-            let single_result = Value::Long(5).checked_add(&Value::SinglePrecision(3.0)).unwrap();
+            let single_result = Value::Long(5)
+                .checked_add(&Value::SinglePrecision(3.0))
+                .unwrap();
             assert!(matches!(single_result, Some(Value::SinglePrecision(_))));
 
-            let double_result = Value::SinglePrecision(5.0).checked_add(&Value::DoublePrecision(3.0)).unwrap();
+            let double_result = Value::SinglePrecision(5.0)
+                .checked_add(&Value::DoublePrecision(3.0))
+                .unwrap();
             assert!(matches!(double_result, Some(Value::DoublePrecision(_))));
         }
     }

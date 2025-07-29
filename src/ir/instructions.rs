@@ -96,7 +96,9 @@ mod tests {
                 r#type: VariableType::String,
             };
             let instr = Instruction::StoreVar(var.clone());
-            assert!(matches!(instr, Instruction::StoreVar(v) if v.name == "result" && v.r#type == VariableType::String));
+            assert!(
+                matches!(instr, Instruction::StoreVar(v) if v.name == "result" && v.r#type == VariableType::String)
+            );
         }
 
         #[test]
@@ -123,14 +125,18 @@ mod tests {
                 dimensions: vec![(1, 10), (1, 5)],
             };
             match instr {
-                Instruction::DeclareArray { name, element_type, dimensions } => {
+                Instruction::DeclareArray {
+                    name,
+                    element_type,
+                    dimensions,
+                } => {
                     assert_eq!(name, "matrix");
                     assert_eq!(element_type, VariableType::Integer);
                     assert_eq!(dimensions.len(), 2);
                     assert_eq!(dimensions[0], (1, 10));
                     assert_eq!(dimensions[1], (1, 5));
                 }
-                _ => panic!("Expected DeclareArray instruction")
+                _ => panic!("Expected DeclareArray instruction"),
             }
         }
 
@@ -145,7 +151,7 @@ mod tests {
                     assert_eq!(name, "arr");
                     assert_eq!(num_indices, 2);
                 }
-                _ => panic!("Expected LoadArrayElement instruction")
+                _ => panic!("Expected LoadArrayElement instruction"),
             }
 
             let store_instr = Instruction::StoreArrayElement {
@@ -157,7 +163,7 @@ mod tests {
                     assert_eq!(name, "arr");
                     assert_eq!(num_indices, 1);
                 }
-                _ => panic!("Expected StoreArrayElement instruction")
+                _ => panic!("Expected StoreArrayElement instruction"),
             }
         }
     }
@@ -199,9 +205,15 @@ mod tests {
             assert!(matches!(Instruction::Equal, Instruction::Equal));
             assert!(matches!(Instruction::NotEqual, Instruction::NotEqual));
             assert!(matches!(Instruction::LessThan, Instruction::LessThan));
-            assert!(matches!(Instruction::LessThanEqual, Instruction::LessThanEqual));
+            assert!(matches!(
+                Instruction::LessThanEqual,
+                Instruction::LessThanEqual
+            ));
             assert!(matches!(Instruction::GreaterThan, Instruction::GreaterThan));
-            assert!(matches!(Instruction::GreaterThanEqual, Instruction::GreaterThanEqual));
+            assert!(matches!(
+                Instruction::GreaterThanEqual,
+                Instruction::GreaterThanEqual
+            ));
         }
     }
 
@@ -224,12 +236,12 @@ mod tests {
         fn test_jump_instruction_targets() {
             match Instruction::Jump(42) {
                 Instruction::Jump(target) => assert_eq!(target, 42),
-                _ => panic!("Expected Jump instruction")
+                _ => panic!("Expected Jump instruction"),
             }
 
             match Instruction::JumpIfFalse(100) {
                 Instruction::JumpIfFalse(target) => assert_eq!(target, 100),
-                _ => panic!("Expected JumpIfFalse instruction")
+                _ => panic!("Expected JumpIfFalse instruction"),
             }
         }
     }
@@ -300,12 +312,12 @@ mod tests {
             // Verify jump targets
             match &program.instructions[1] {
                 Instruction::JumpIfFalse(target) => assert_eq!(*target, 4),
-                _ => panic!("Expected JumpIfFalse instruction")
+                _ => panic!("Expected JumpIfFalse instruction"),
             }
 
             match &program.instructions[3] {
                 Instruction::Jump(target) => assert_eq!(*target, 5),
-                _ => panic!("Expected Jump instruction")
+                _ => panic!("Expected Jump instruction"),
             }
         }
 
@@ -325,12 +337,15 @@ mod tests {
             // Verify instructions are the same
             for (orig, clone) in original.instructions.iter().zip(cloned.instructions.iter()) {
                 match (orig, clone) {
-                    (Instruction::LoadConst(Value::Integer(a)), Instruction::LoadConst(Value::Integer(b))) => {
+                    (
+                        Instruction::LoadConst(Value::Integer(a)),
+                        Instruction::LoadConst(Value::Integer(b)),
+                    ) => {
                         assert_eq!(a, b);
                     }
                     (Instruction::Print, Instruction::Print) => {}
                     (Instruction::Halt, Instruction::Halt) => {}
-                    _ => panic!("Instructions don't match")
+                    _ => panic!("Instructions don't match"),
                 }
             }
         }
@@ -342,7 +357,7 @@ mod tests {
         #[test]
         fn test_instruction_debug_format() {
             let instr = Instruction::LoadConst(Value::Integer(42));
-            let debug_str = format!("{:?}", instr);
+            let debug_str = format!("{instr:?}");
             assert!(debug_str.contains("LoadConst"));
             assert!(debug_str.contains("Integer"));
             assert!(debug_str.contains("42"));
@@ -356,7 +371,7 @@ mod tests {
                     Instruction::Print,
                 ],
             };
-            let debug_str = format!("{:?}", program);
+            let debug_str = format!("{program:?}");
             assert!(debug_str.contains("Program"));
             assert!(debug_str.contains("instructions"));
         }
@@ -372,14 +387,22 @@ mod tests {
 
             match (&original, &cloned) {
                 (
-                    Instruction::DeclareArray { name: name1, element_type: type1, dimensions: dims1 },
-                    Instruction::DeclareArray { name: name2, element_type: type2, dimensions: dims2 }
+                    Instruction::DeclareArray {
+                        name: name1,
+                        element_type: type1,
+                        dimensions: dims1,
+                    },
+                    Instruction::DeclareArray {
+                        name: name2,
+                        element_type: type2,
+                        dimensions: dims2,
+                    },
                 ) => {
                     assert_eq!(name1, name2);
                     assert_eq!(type1, type2);
                     assert_eq!(dims1, dims2);
                 }
-                _ => panic!("Cloning failed")
+                _ => panic!("Cloning failed"),
             }
         }
     }
@@ -399,7 +422,7 @@ mod tests {
                     assert_eq!(name, "scalar");
                     assert_eq!(num_indices, 0);
                 }
-                _ => panic!("Expected LoadArrayElement instruction")
+                _ => panic!("Expected LoadArrayElement instruction"),
             }
         }
 
@@ -408,7 +431,7 @@ mod tests {
             let instr = Instruction::Jump(usize::MAX);
             match instr {
                 Instruction::Jump(target) => assert_eq!(target, usize::MAX),
-                _ => panic!("Expected Jump instruction")
+                _ => panic!("Expected Jump instruction"),
             }
         }
 
@@ -417,7 +440,7 @@ mod tests {
             let instr = Instruction::Input(vec![]);
             match instr {
                 Instruction::Input(vars) => assert!(vars.is_empty()),
-                _ => panic!("Expected Input instruction")
+                _ => panic!("Expected Input instruction"),
             }
         }
 
@@ -430,7 +453,7 @@ mod tests {
             };
             match instr {
                 Instruction::DeclareArray { dimensions, .. } => assert!(dimensions.is_empty()),
-                _ => panic!("Expected DeclareArray instruction")
+                _ => panic!("Expected DeclareArray instruction"),
             }
         }
     }
