@@ -29,6 +29,23 @@ pub enum Instruction {
     Subtract,
     Multiply,
     Divide,
+    
+    // Unary operations
+    UnaryPlus,
+    UnaryMinus,
+
+    // Logical operations
+    And,
+    Or,
+    Not,
+
+    // Relational operations
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanEqual,
+    GreaterThan,
+    GreaterThanEqual,
 
     Print,
     Halt,

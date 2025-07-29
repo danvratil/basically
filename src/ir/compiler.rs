@@ -126,6 +126,52 @@ fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
             })
         )
         .collect(),
+        ast::Expression::UnaryOp { op, operand } => {
+            chain!(
+                compile_expression(*operand),
+                iter::once(match op {
+                    ast::UnaryOperator::Plus => ir::Instruction::UnaryPlus,
+                    ast::UnaryOperator::Minus => ir::Instruction::UnaryMinus,
+                })
+            ).collect()
+        }
+        ast::Expression::LogicalOp { left, op, right } => {
+            match left {
+                Some(left_expr) => {
+                    // Binary logical operation (AND, OR)
+                    chain!(
+                        compile_expression(*left_expr),
+                        compile_expression(*right),
+                        iter::once(match op {
+                            ast::LogicalOperator::And => ir::Instruction::And,
+                            ast::LogicalOperator::Or => ir::Instruction::Or,
+                            ast::LogicalOperator::Not => panic!("NOT should not have left operand"),
+                        })
+                    ).collect()
+                }
+                None => {
+                    // Unary logical operation (NOT)
+                    chain!(
+                        compile_expression(*right),
+                        iter::once(ir::Instruction::Not)
+                    ).collect()
+                }
+            }
+        }
+        ast::Expression::RelationalOp { left, op, right } => {
+            chain!(
+                compile_expression(*left),
+                compile_expression(*right),
+                iter::once(match op {
+                    ast::RelationalOperator::Equal => ir::Instruction::Equal,
+                    ast::RelationalOperator::NotEqual => ir::Instruction::NotEqual,
+                    ast::RelationalOperator::LessThan => ir::Instruction::LessThan,
+                    ast::RelationalOperator::LessThanEqual => ir::Instruction::LessThanEqual,
+                    ast::RelationalOperator::GreaterThan => ir::Instruction::GreaterThan,
+                    ast::RelationalOperator::GreaterThanEqual => ir::Instruction::GreaterThanEqual,
+                })
+            ).collect()
+        }
         ast::Expression::Variable(variable) => {
             vec![ir::Instruction::LoadVar(variable)]
         }

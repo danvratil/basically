@@ -273,6 +273,20 @@ pub enum Expression {
         op: BinaryOperator,
         right: Box<Expression>,
     },
+    UnaryOp {
+        op: UnaryOperator,
+        operand: Box<Expression>,
+    },
+    LogicalOp {
+        left: Option<Box<Expression>>, // None for NOT operator
+        op: LogicalOperator,
+        right: Box<Expression>,
+    },
+    RelationalOp {
+        left: Box<Expression>,
+        op: RelationalOperator,
+        right: Box<Expression>,
+    },
     Variable(Variable),
     ArrayAccess(ArrayAccess),
 }
@@ -282,6 +296,106 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
 
     fn try_from(expr: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         match expr.as_rule() {
+            Rule::logical_expression => {
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty logical expression".to_string()));
+                }
+
+                // Start with the first logical term
+                let mut result = Expression::try_from(elements.remove(0))?;
+
+                // Process remaining OR operator-term pairs
+                while elements.len() >= 2 {
+                    let op = LogicalOperator::try_from(elements.remove(0))?;
+                    let right = Expression::try_from(elements.remove(0))?;
+
+                    result = Expression::LogicalOp {
+                        left: Some(Box::new(result)),
+                        op,
+                        right: Box::new(right),
+                    };
+                }
+
+                Ok(result)
+            }
+            Rule::logical_term => {
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty logical term".to_string()));
+                }
+
+                // Start with the first logical factor
+                let mut result = Expression::try_from(elements.remove(0))?;
+
+                // Process remaining AND operator-factor pairs
+                while elements.len() >= 2 {
+                    let op = LogicalOperator::try_from(elements.remove(0))?;
+                    let right = Expression::try_from(elements.remove(0))?;
+
+                    result = Expression::LogicalOp {
+                        left: Some(Box::new(result)),
+                        op,
+                        right: Box::new(right),
+                    };
+                }
+
+                Ok(result)
+            }
+            Rule::logical_factor => {
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty logical factor".to_string()));
+                }
+
+                // Check if this starts with NOT
+                let first = &elements[0];
+                if first.as_rule() == Rule::not_operator {
+                    if elements.len() < 2 {
+                        return Err(AstError::InvalidExpression("NOT operator without operand".to_string()));
+                    }
+                    let op = LogicalOperator::try_from(elements.remove(0))?;
+                    let operand = Expression::try_from(elements.remove(0))?;
+                    Ok(Expression::LogicalOp {
+                        left: None,
+                        op,
+                        right: Box::new(operand),
+                    })
+                } else {
+                    // Just parse the relational expression
+                    Expression::try_from(elements.remove(0))
+                }
+            }
+            Rule::relational_expression => {
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty relational expression".to_string()));
+                }
+
+                // If there's only one element, it's just an expression
+                if elements.len() == 1 {
+                    return Expression::try_from(elements.remove(0));
+                }
+
+                // Otherwise, it's left relational_operator right
+                if elements.len() != 3 {
+                    return Err(AstError::InvalidExpression("Invalid relational expression format".to_string()));
+                }
+
+                let left = Expression::try_from(elements.remove(0))?;
+                let op = RelationalOperator::try_from(elements.remove(0))?;
+                let right = Expression::try_from(elements.remove(0))?;
+
+                Ok(Expression::RelationalOp {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
             Rule::expression => {
                 let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
 
@@ -332,6 +446,26 @@ impl TryFrom<Pair<'_, Rule>> for Expression {
             }
             Rule::variable => Ok(Expression::Variable(Variable::try_from(expr)?)),
             Rule::factor => {
+                let mut elements = expr.clone().into_inner().collect::<Vec<_>>();
+                
+                if elements.is_empty() {
+                    return Err(AstError::InvalidExpression("Empty factor".to_string()));
+                }
+                
+                // Check if there's a unary operator
+                if elements.len() == 2 {
+                    let op = UnaryOperator::try_from(elements.remove(0))?;
+                    let operand = Expression::try_from(elements.remove(0))?;
+                    Ok(Expression::UnaryOp {
+                        op,
+                        operand: Box::new(operand),
+                    })
+                } else {
+                    // Just parse the primary expression
+                    Expression::try_from(elements.remove(0))
+                }
+            }
+            Rule::primary => {
                 let mut inner = expr.clone().into_inner();
                 Ok(Expression::try_from(inner.next().unwrap())?)
             }
@@ -371,6 +505,29 @@ pub enum BinaryOperator {
     Divide,
 }
 
+#[derive(Debug, Clone)]
+pub enum UnaryOperator {
+    Plus,
+    Minus,
+}
+
+#[derive(Debug, Clone)]
+pub enum LogicalOperator {
+    And,
+    Or,
+    Not,
+}
+
+#[derive(Debug, Clone)]
+pub enum RelationalOperator {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanEqual,
+    GreaterThan,
+    GreaterThanEqual,
+}
+
 impl TryFrom<Pair<'_, Rule>> for BinaryOperator {
     type Error = AstError;
 
@@ -382,6 +539,72 @@ impl TryFrom<Pair<'_, Rule>> for BinaryOperator {
             Rule::division_operator => Ok(BinaryOperator::Divide),
             _ => Err(AstError::InvalidExpression(format!(
                 "Invalid binary operator: {:?}",
+                op
+            ))),
+        }
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for UnaryOperator {
+    type Error = AstError;
+
+    fn try_from(op: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match op.as_rule() {
+            Rule::unary_operator => {
+                match op.as_str() {
+                    "+" => Ok(UnaryOperator::Plus),
+                    "-" => Ok(UnaryOperator::Minus),
+                    _ => Err(AstError::InvalidExpression(format!(
+                        "Invalid unary operator: {}",
+                        op.as_str()
+                    ))),
+                }
+            }
+            _ => Err(AstError::InvalidExpression(format!(
+                "Invalid unary operator rule: {:?}",
+                op
+            ))),
+        }
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for LogicalOperator {
+    type Error = AstError;
+
+    fn try_from(op: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match op.as_rule() {
+            Rule::and_operator => Ok(LogicalOperator::And),
+            Rule::or_operator => Ok(LogicalOperator::Or),
+            Rule::not_operator => Ok(LogicalOperator::Not),
+            _ => Err(AstError::InvalidExpression(format!(
+                "Invalid logical operator: {:?}",
+                op
+            ))),
+        }
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for RelationalOperator {
+    type Error = AstError;
+
+    fn try_from(op: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match op.as_rule() {
+            Rule::relational_operator => {
+                match op.as_str() {
+                    "=" => Ok(RelationalOperator::Equal),
+                    "<>" => Ok(RelationalOperator::NotEqual),
+                    "<" => Ok(RelationalOperator::LessThan),
+                    "<=" => Ok(RelationalOperator::LessThanEqual),
+                    ">" => Ok(RelationalOperator::GreaterThan),
+                    ">=" => Ok(RelationalOperator::GreaterThanEqual),
+                    _ => Err(AstError::InvalidExpression(format!(
+                        "Invalid relational operator: {}",
+                        op.as_str()
+                    ))),
+                }
+            }
+            _ => Err(AstError::InvalidExpression(format!(
+                "Invalid relational operator rule: {:?}",
                 op
             ))),
         }

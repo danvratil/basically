@@ -1,0 +1,44 @@
+Testing logical operations:
+-1
+0
+-1
+0
+-1
+0
+-1
+-1
+0
+-1
+0
+-1
+0
+-1
+Testing AND:
+-1
+0
+0
+0
+Testing OR:
+-1
+-1
+-1
+0
+Testing NOT:
+0
+-1
+Testing variables:
+0
+-1
+-1
+-1
+Testing string comparisons:
+-1
+0
+-1
+Testing complex expressions:
+-1
+-1
+-1
+Testing type coercion:
+-1
+-1

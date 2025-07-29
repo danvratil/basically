@@ -13,14 +13,19 @@ statement = {
 }
 statement_separator = _{ "\n" | ":" | EOI }
 
-assignment_statement = { (array_access | variable) ~ assignment_operator ~ expression }
-print_statement = { "PRINT" ~ expression }
+assignment_statement = { (array_access | variable) ~ assignment_operator ~ logical_expression }
+print_statement = { "PRINT" ~ logical_expression }
 input_statement = { "INPUT" ~ (string ~ (";" | ","))? ~ variable ~ ("," ~ variable)* }
 dim_statement = { "DIM" ~ shared_keyword? ~ variable_without_type ~ ("(" ~ array_subscripts ~ ")")? ~ ("AS" ~ type_specifier)? }
 
+logical_expression = { logical_term ~ (or_operator ~ logical_term)* }
+logical_term = { logical_factor ~ (and_operator ~ logical_factor)* }
+logical_factor = { not_operator? ~ relational_expression | ("(" ~ logical_expression ~ ")") }
+relational_expression = { expression ~ relational_operator ~ expression | expression }
 expression = { term ~ ((addition_operator|subtraction_operator) ~ term)* }
 term = { factor ~ ((multiplication_operator|division_operator) ~ factor)* }
-factor = { number | string | array_access | variable | ("(" ~ expression ~ ")") }
+factor = { unary_operator? ~ primary }
+primary = { number | string | array_access | variable | ("(" ~ logical_expression ~ ")") }
 
 metacommand = { "$STATIC" | "$DYNAMIC" }
 
@@ -28,7 +33,7 @@ number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? | "." ~ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 variable = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ (single_precision_suffix | double_precision_suffix | string_suffix | integer_suffix | long_integer_suffix)? }
 variable_without_type = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
-array_access = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ "(" ~ expression ~ ("," ~ expression)* ~ ")" }
+array_access = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* ~ "(" ~ logical_expression ~ ("," ~ logical_expression)* ~ ")" }
 
 
 // Date type suffixes
@@ -45,9 +50,19 @@ division_operator = { "/" }
 addition_operator = { "+" }
 exponentiation_operator = { "^" }
 
-// Logic operators
+// Assignment operator
 assignment_operator = { "=" }
-relational_operators = { "<" | "=" | ">" }
+
+// Unary operators
+unary_operator = { "-" | "+" }
+
+// Logical operators
+and_operator = { "AND" }
+or_operator = { "OR" }
+not_operator = { "NOT" }
+
+// Relational operators (order matters for longest match first)
+relational_operator = { "<=" | ">=" | "<>" | "=" | "<" | ">" }
 
 remark_leader = { "'" | "REM" }
 shared_keyword = { "SHARED" }
@@ -55,4 +70,4 @@ type_specifier = { "INTEGER" | "LONG" | "SINGLE" | "DOUBLE" | "STRING" | user_de
 user_defined_type = { ASCII_ALPHA ~ ("." | ASCII_ALPHANUMERIC)* }
 
 array_subscripts = { array_subscript ~ ("," ~ array_subscript)* }
-array_subscript = { (expression ~ "TO")? ~ expression }
+array_subscript = { (logical_expression ~ "TO")? ~ logical_expression }

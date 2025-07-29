@@ -11,6 +11,8 @@ pub enum Value {
     DoublePrecision(f64),
     Integer(i16),
     Long(i32),
+    /// Boolean value (QBasic uses 0 for false, -1 for true)
+    Boolean(bool),
     /// A special value indicating an absence of an value (like a null pointer)
     Null,
 }
@@ -23,6 +25,7 @@ impl Value {
             Value::DoublePrecision(_) => "double precision",
             Value::Integer(_) => "integer",
             Value::Long(_) => "long",
+            Value::Boolean(_) => "boolean",
             Value::Null => "null",
         }
     }
@@ -34,6 +37,7 @@ impl Value {
             Value::DoublePrecision(_) => ast::VariableType::DoublePrecision,
             Value::Integer(_) => ast::VariableType::Integer,
             Value::Long(_) => ast::VariableType::Long,
+            Value::Boolean(_) => ast::VariableType::Integer, // QBasic treats booleans as integers
             Value::Null => panic!("Null is not a valid variable type"),
         }
     }
