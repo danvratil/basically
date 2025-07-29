@@ -112,6 +112,10 @@ pub enum Statement {
         condition: Option<Expression>, // None for infinite loop
         statements: Vec<Statement>,
     },
+    While {
+        condition: Expression,
+        statements: Vec<Statement>,
+    },
     ExitDo,
     ExitFor,
 }
@@ -494,6 +498,25 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     condition: None,
                     statements,
                 })
+            }
+            Rule::while_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+
+                // The structure should be: logical_expression, statement_list
+                if elements.len() != 2 {
+                    return Err(AstError::InvalidStatement(format!(
+                        "Expected 2 elements in WHILE, got {}",
+                        elements.len()
+                    )));
+                }
+
+                // Parse condition
+                let condition = Expression::try_from(elements[0].clone())?;
+
+                // Parse statement list
+                let statements = parse_statement_list(elements[1].clone())?;
+
+                Ok(Statement::While { condition, statements })
             }
             Rule::exit_statement => {
                 // The exit_statement rule matches "EXIT" followed by "DO" or "FOR"

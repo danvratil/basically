@@ -491,6 +491,29 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
                 }
             }
         }
+        ast::Statement::While { condition, statements } => {
+            // Generate labels for WHILE loop
+            let while_check_label = ctx.generate_label();
+            let while_end_label = ctx.generate_label();
+            
+            // WHILE loop condition check
+            ctx.place_label(&while_check_label);
+            for instruction in compile_expression(condition.clone()) {
+                ctx.emit_instruction(instruction);
+            }
+            ctx.emit_jump_if_false(&while_end_label);
+            
+            // WHILE loop body
+            for statement in statements {
+                compile_statement_with_context(ctx, statement);
+            }
+            ctx.emit_jump(&while_check_label);
+            
+            // Note: No loop context tracking needed since WHILE loops don't support EXIT statements
+            
+            // End of WHILE loop
+            ctx.place_label(&while_end_label);
+        }
         ast::Statement::ExitDo => {
             // Find the topmost DO loop and jump to its end
             if let Some(end_label) = ctx.find_loop_end_label("DO") {

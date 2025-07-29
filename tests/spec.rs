@@ -26,6 +26,10 @@ use yare::parameterized;
     basic_exit_do_simple = { "basic_exit_do_simple" },
     basic_exit_do_minimal = { "basic_exit_do_minimal" },
     basic_exit_for = { "basic_exit_for" },
+    basic_while = { "basic_while" },
+    basic_while_simple = { "basic_while_simple" },
+    basic_while_nested = { "basic_while_nested" },
+    basic_while_complex = { "basic_while_complex" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{name}.bas")).unwrap();

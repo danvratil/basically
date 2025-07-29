@@ -8,6 +8,7 @@ statement = {
     for_statement |
     if_statement |
     do_statement |
+    while_statement |
     exit_statement |
     assignment_statement |
     print_statement |
@@ -44,6 +45,8 @@ do_until_statement = { "DO" ~ "UNTIL" ~ logical_expression ~ statement_separator
 do_loop_while_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" ~ "WHILE" ~ logical_expression }
 do_loop_until_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" ~ "UNTIL" ~ logical_expression }
 do_infinite_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" }
+
+while_statement = { "WHILE" ~ logical_expression ~ statement_separator ~ statement_list ~ "WEND" }
 
 exit_statement = { "EXIT" ~ ("DO" | "FOR") }
 
