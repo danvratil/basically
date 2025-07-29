@@ -7,6 +7,7 @@ program = { SOI ~ ((statement ~ comment? ~ statement_separator) | "\n")* ~ EOI }
 statement = {
     for_statement |
     if_statement |
+    do_statement |
     assignment_statement |
     print_statement |
     input_statement |
@@ -28,6 +29,20 @@ if_statement = {
     ("ELSE" ~ statement_separator ~ statement_list)? ~
     "ENDIF"
 }
+
+do_statement = {
+    do_while_statement |
+    do_until_statement |
+    do_loop_while_statement |
+    do_loop_until_statement |
+    do_infinite_statement
+}
+
+do_while_statement = { "DO" ~ "WHILE" ~ logical_expression ~ statement_separator ~ statement_list ~ "LOOP" }
+do_until_statement = { "DO" ~ "UNTIL" ~ logical_expression ~ statement_separator ~ statement_list ~ "LOOP" }
+do_loop_while_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" ~ "WHILE" ~ logical_expression }
+do_loop_until_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" ~ "UNTIL" ~ logical_expression }
+do_infinite_statement = { "DO" ~ statement_separator ~ statement_list ~ "LOOP" }
 
 statement_list = { (statement ~ statement_separator)* }
 

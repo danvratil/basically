@@ -305,6 +305,115 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
             // End of FOR loop
             ctx.place_label(&for_end_label);
         }
+        ast::Statement::DoLoop {
+            condition_type,
+            condition,
+            statements,
+        } => {
+            match condition_type {
+                ast::DoConditionType::PreTestWhile => {
+                    // DO WHILE condition
+                    let condition_label = ctx.generate_label();
+                    let body_label = ctx.generate_label();
+                    let end_label = ctx.generate_label();
+
+                    // Condition check
+                    ctx.place_label(&condition_label);
+                    for instruction in
+                        compile_expression(condition.expect("PreTestWhile must have condition"))
+                    {
+                        ctx.emit_instruction(instruction);
+                    }
+                    ctx.emit_jump_if_false(&end_label);
+
+                    // Loop body
+                    ctx.place_label(&body_label);
+                    for statement in statements {
+                        compile_statement_with_context(ctx, statement);
+                    }
+                    ctx.emit_jump(&condition_label);
+
+                    // End of loop
+                    ctx.place_label(&end_label);
+                }
+                ast::DoConditionType::PreTestUntil => {
+                    // DO UNTIL condition
+                    let condition_label = ctx.generate_label();
+                    let body_label = ctx.generate_label();
+                    let end_label = ctx.generate_label();
+
+                    // Condition check
+                    ctx.place_label(&condition_label);
+                    for instruction in
+                        compile_expression(condition.expect("PreTestUntil must have condition"))
+                    {
+                        ctx.emit_instruction(instruction);
+                    }
+                    ctx.emit_jump_if_true(&end_label);
+
+                    // Loop body
+                    ctx.place_label(&body_label);
+                    for statement in statements {
+                        compile_statement_with_context(ctx, statement);
+                    }
+                    ctx.emit_jump(&condition_label);
+
+                    // End of loop
+                    ctx.place_label(&end_label);
+                }
+                ast::DoConditionType::PostTestWhile => {
+                    // DO...LOOP WHILE condition
+                    let body_label = ctx.generate_label();
+                    let condition_label = ctx.generate_label();
+
+                    // Loop body
+                    ctx.place_label(&body_label);
+                    for statement in statements {
+                        compile_statement_with_context(ctx, statement);
+                    }
+
+                    // Condition check
+                    ctx.place_label(&condition_label);
+                    for instruction in
+                        compile_expression(condition.expect("PostTestWhile must have condition"))
+                    {
+                        ctx.emit_instruction(instruction);
+                    }
+                    ctx.emit_jump_if_true(&body_label);
+                }
+                ast::DoConditionType::PostTestUntil => {
+                    // DO...LOOP UNTIL condition
+                    let body_label = ctx.generate_label();
+                    let condition_label = ctx.generate_label();
+
+                    // Loop body
+                    ctx.place_label(&body_label);
+                    for statement in statements {
+                        compile_statement_with_context(ctx, statement);
+                    }
+
+                    // Condition check
+                    ctx.place_label(&condition_label);
+                    for instruction in
+                        compile_expression(condition.expect("PostTestUntil must have condition"))
+                    {
+                        ctx.emit_instruction(instruction);
+                    }
+                    ctx.emit_jump_if_false(&body_label);
+                }
+                ast::DoConditionType::None => {
+                    // DO...LOOP (infinite loop)
+                    let body_label = ctx.generate_label();
+
+                    // Loop body
+                    ctx.place_label(&body_label);
+                    for statement in statements {
+                        compile_statement_with_context(ctx, statement);
+                    }
+                    ctx.emit_jump(&body_label);
+                }
+            }
+        }
         ast::Statement::Noop => {
             // Do nothing
         }

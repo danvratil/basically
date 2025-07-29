@@ -75,6 +75,15 @@ pub struct IfBranch {
 }
 
 #[derive(Debug, Clone)]
+pub enum DoConditionType {
+    PreTestWhile,  // DO WHILE condition
+    PreTestUntil,  // DO UNTIL condition
+    PostTestWhile, // LOOP WHILE condition
+    PostTestUntil, // LOOP UNTIL condition
+    None,          // DO...LOOP (infinite) - implemented but not tested initially
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Noop,
     Print(Expression),
@@ -96,6 +105,11 @@ pub enum Statement {
         start: Expression,
         end: Expression,
         step: Option<Expression>, // None means step = 1
+        statements: Vec<Statement>,
+    },
+    DoLoop {
+        condition_type: DoConditionType,
+        condition: Option<Expression>, // None for infinite loop
         statements: Vec<Statement>,
     },
 }
@@ -358,6 +372,126 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 }
 
                 Ok(Statement::If { branches })
+            }
+            Rule::do_statement => {
+                // Delegate to the specific DO statement type
+                let inner_statement = statement
+                    .into_inner()
+                    .next()
+                    .ok_or(AstError::InvalidStatement("Empty DO statement".to_string()))?;
+                Statement::try_from(inner_statement)
+            }
+            Rule::do_while_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+
+                // The structure should be: logical_expression, statement_list
+                if elements.len() != 2 {
+                    return Err(AstError::InvalidStatement(format!(
+                        "Expected 2 elements in DO WHILE, got {}",
+                        elements.len()
+                    )));
+                }
+
+                // Parse condition
+                let condition = Expression::try_from(elements[0].clone())?;
+
+                // Parse statement list
+                let statements = parse_statement_list(elements[1].clone())?;
+
+                Ok(Statement::DoLoop {
+                    condition_type: DoConditionType::PreTestWhile,
+                    condition: Some(condition),
+                    statements,
+                })
+            }
+            Rule::do_until_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+
+                // The structure should be: logical_expression, statement_list
+                if elements.len() != 2 {
+                    return Err(AstError::InvalidStatement(format!(
+                        "Expected 2 elements in DO UNTIL, got {}",
+                        elements.len()
+                    )));
+                }
+
+                // Parse condition
+                let condition = Expression::try_from(elements[0].clone())?;
+
+                // Parse statement list
+                let statements = parse_statement_list(elements[1].clone())?;
+
+                Ok(Statement::DoLoop {
+                    condition_type: DoConditionType::PreTestUntil,
+                    condition: Some(condition),
+                    statements,
+                })
+            }
+            Rule::do_loop_while_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+
+                // The structure should be: statement_list, logical_expression
+                if elements.len() != 2 {
+                    return Err(AstError::InvalidStatement(format!(
+                        "Expected 2 elements in DO LOOP WHILE, got {}",
+                        elements.len()
+                    )));
+                }
+
+                // Parse statement list
+                let statements = parse_statement_list(elements[0].clone())?;
+
+                // Parse condition
+                let condition = Expression::try_from(elements[1].clone())?;
+
+                Ok(Statement::DoLoop {
+                    condition_type: DoConditionType::PostTestWhile,
+                    condition: Some(condition),
+                    statements,
+                })
+            }
+            Rule::do_loop_until_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+
+                // The structure should be: statement_list, logical_expression
+                if elements.len() != 2 {
+                    return Err(AstError::InvalidStatement(format!(
+                        "Expected 2 elements in DO LOOP UNTIL, got {}",
+                        elements.len()
+                    )));
+                }
+
+                // Parse statement list
+                let statements = parse_statement_list(elements[0].clone())?;
+
+                // Parse condition
+                let condition = Expression::try_from(elements[1].clone())?;
+
+                Ok(Statement::DoLoop {
+                    condition_type: DoConditionType::PostTestUntil,
+                    condition: Some(condition),
+                    statements,
+                })
+            }
+            Rule::do_infinite_statement => {
+                let elements = statement.into_inner().collect::<Vec<_>>();
+
+                // The structure should be: statement_list only
+                if elements.len() != 1 {
+                    return Err(AstError::InvalidStatement(format!(
+                        "Expected 1 element in DO LOOP, got {}",
+                        elements.len()
+                    )));
+                }
+
+                // Parse statement list
+                let statements = parse_statement_list(elements[0].clone())?;
+
+                Ok(Statement::DoLoop {
+                    condition_type: DoConditionType::None,
+                    condition: None,
+                    statements,
+                })
             }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected statement, got {:?}",

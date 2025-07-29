@@ -22,6 +22,7 @@ use yare::parameterized;
     basic_if_simple = { "basic_if_simple" },
     basic_if = { "basic_if" },
     basic_for = { "basic_for" },
+    basic_do_loop = { "basic_do_loop" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{name}.bas")).unwrap();
