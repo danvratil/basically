@@ -33,6 +33,10 @@ use yare::parameterized;
     basic_goto_line_numbers = { "basic_goto_line_numbers" },
     basic_goto_labels = { "basic_goto_labels" },
     basic_goto_mixed = { "basic_goto_mixed" },
+    basic_select_case = { "basic_select_case" },
+    select_case_ranges = { "select_case_ranges" },
+    select_case_relational = { "select_case_relational" },
+    select_case_mixed = { "select_case_mixed" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{name}.bas")).unwrap();

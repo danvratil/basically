@@ -20,7 +20,7 @@ struct CompilerContext {
     label_counter: usize,
     jump_patches: HashMap<String, Vec<usize>>, // label -> list of instruction indices to patch
     label_positions: HashMap<String, usize>,   // label -> instruction position
-    loop_stack: Vec<LoopContext>,             // track current loop context for EXIT statements
+    loop_stack: Vec<LoopContext>,              // track current loop context for EXIT statements
 }
 
 impl CompilerContext {
@@ -129,11 +129,14 @@ pub fn compile(program: ast::Program) -> ir::Program {
 
 fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Statement) {
     match statement {
-        ast::Statement::NumberedStatement { line_number, statement } => {
+        ast::Statement::NumberedStatement {
+            line_number,
+            statement,
+        } => {
             // Place line number label first
             let line_label = format!("LINE_{}", line_number);
             ctx.place_label(&line_label);
-            
+
             // Then compile the inner statement
             compile_plain_statement_with_context(ctx, statement);
         }
@@ -371,7 +374,9 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
 
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in compile_expression(condition.expect("PreTestWhile must have condition")) {
+                    for instruction in
+                        compile_expression(condition.expect("PreTestWhile must have condition"))
+                    {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_false(&end_label);
@@ -402,7 +407,9 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
 
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in compile_expression(condition.expect("PreTestUntil must have condition")) {
+                    for instruction in
+                        compile_expression(condition.expect("PreTestUntil must have condition"))
+                    {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_true(&end_label);
@@ -447,7 +454,9 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
 
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in compile_expression(condition.expect("PostTestWhile must have condition")) {
+                    for instruction in
+                        compile_expression(condition.expect("PostTestWhile must have condition"))
+                    {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_true(&body_label);
@@ -475,7 +484,9 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
 
                     // Condition check
                     ctx.place_label(&condition_label);
-                    for instruction in compile_expression(condition.expect("PostTestUntil must have condition")) {
+                    for instruction in
+                        compile_expression(condition.expect("PostTestUntil must have condition"))
+                    {
                         ctx.emit_instruction(instruction);
                     }
                     ctx.emit_jump_if_false(&body_label);
@@ -507,26 +518,29 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
                 }
             }
         }
-        ast::PlainStatement::While { condition, statements } => {
+        ast::PlainStatement::While {
+            condition,
+            statements,
+        } => {
             // Generate labels for WHILE loop
             let while_check_label = ctx.generate_label();
             let while_end_label = ctx.generate_label();
-            
+
             // WHILE loop condition check
             ctx.place_label(&while_check_label);
             for instruction in compile_expression(condition.clone()) {
                 ctx.emit_instruction(instruction);
             }
             ctx.emit_jump_if_false(&while_end_label);
-            
+
             // WHILE loop body
             for statement in statements {
                 compile_statement_with_context(ctx, statement);
             }
             ctx.emit_jump(&while_check_label);
-            
+
             // Note: No loop context tracking needed since WHILE loops don't support EXIT statements
-            
+
             // End of WHILE loop
             ctx.place_label(&while_end_label);
         }
@@ -562,6 +576,168 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
         }
         ast::PlainStatement::Label(name) => {
             ctx.place_label(&name);
+        }
+        ast::PlainStatement::SelectCase {
+            test_expression,
+            case_branches,
+            else_statements,
+        } => {
+            // Generate unique labels
+            let end_label = ctx.generate_label();
+            let mut case_labels = Vec::new();
+
+            // Generate labels for each case branch
+            for _ in case_branches.iter() {
+                case_labels.push(ctx.generate_label());
+            }
+
+            // Generate label for else branch if present
+            let else_label = if else_statements.is_some() {
+                Some(ctx.generate_label())
+            } else {
+                None
+            };
+
+            // Compile and store test expression in a temporary variable
+            // We'll determine the type based on the first case constant
+            let temp_var_name = format!("__select_case_test_{}", ctx.label_counter);
+            let temp_var_type = if let Some(first_branch) = case_branches.first() {
+                if let Some(first_expr) = first_branch.expressions.first() {
+                    match first_expr {
+                        ast::CaseExpression::Exact(ast::CaseConstant::String(_)) => {
+                            ast::VariableType::String
+                        }
+                        ast::CaseExpression::Exact(ast::CaseConstant::Float(_)) => {
+                            ast::VariableType::DoublePrecision
+                        }
+                        ast::CaseExpression::Exact(ast::CaseConstant::Integer(_)) => {
+                            ast::VariableType::Integer
+                        }
+                        ast::CaseExpression::Range { from, .. } => match from {
+                            ast::CaseConstant::String(_) => ast::VariableType::String,
+                            ast::CaseConstant::Float(_) => ast::VariableType::DoublePrecision,
+                            ast::CaseConstant::Integer(_) => ast::VariableType::Integer,
+                        },
+                        ast::CaseExpression::Relational { value, .. } => match value {
+                            ast::CaseConstant::String(_) => ast::VariableType::String,
+                            ast::CaseConstant::Float(_) => ast::VariableType::DoublePrecision,
+                            ast::CaseConstant::Integer(_) => ast::VariableType::Integer,
+                        },
+                    }
+                } else {
+                    ast::VariableType::Integer // Default
+                }
+            } else {
+                ast::VariableType::Integer // Default
+            };
+
+            let temp_var = ast::Variable {
+                name: temp_var_name,
+                r#type: temp_var_type,
+            };
+
+            // Evaluate test expression once and store it
+            for instruction in compile_expression(test_expression.clone()) {
+                ctx.emit_instruction(instruction);
+            }
+            ctx.emit_instruction(ir::Instruction::StoreVar(temp_var.clone()));
+
+            // Generate comparison code for each case branch
+            for (branch_idx, case_branch) in case_branches.iter().enumerate() {
+                // Generate comparison logic for all expressions in this case
+                for (_expr_idx, case_expr) in case_branch.expressions.iter().enumerate() {
+                    // Load test variable
+                    ctx.emit_instruction(ir::Instruction::LoadVar(temp_var.clone()));
+
+                    match case_expr {
+                        ast::CaseExpression::Exact(constant) => {
+                            // test_var == constant
+                            ctx.emit_instruction(ir::Instruction::LoadConst(
+                                case_constant_to_ir_value(constant),
+                            ));
+                            ctx.emit_instruction(ir::Instruction::Equal);
+                        }
+                        ast::CaseExpression::Range { from, to } => {
+                            // test_var >= from AND test_var <= to
+                            // First check: test_var >= from
+                            ctx.emit_instruction(ir::Instruction::LoadConst(
+                                case_constant_to_ir_value(from),
+                            ));
+                            ctx.emit_instruction(ir::Instruction::GreaterThanEqual);
+
+                            // Second check: test_var <= to
+                            ctx.emit_instruction(ir::Instruction::LoadVar(temp_var.clone()));
+                            ctx.emit_instruction(ir::Instruction::LoadConst(
+                                case_constant_to_ir_value(to),
+                            ));
+                            ctx.emit_instruction(ir::Instruction::LessThanEqual);
+
+                            // AND them together
+                            ctx.emit_instruction(ir::Instruction::And);
+                        }
+                        ast::CaseExpression::Relational { op, value } => {
+                            // test_var <op> value
+                            ctx.emit_instruction(ir::Instruction::LoadConst(
+                                case_constant_to_ir_value(value),
+                            ));
+                            match op {
+                                ast::RelationalOperator::Equal => {
+                                    ctx.emit_instruction(ir::Instruction::Equal)
+                                }
+                                ast::RelationalOperator::NotEqual => {
+                                    ctx.emit_instruction(ir::Instruction::NotEqual)
+                                }
+                                ast::RelationalOperator::LessThan => {
+                                    ctx.emit_instruction(ir::Instruction::LessThan)
+                                }
+                                ast::RelationalOperator::LessThanEqual => {
+                                    ctx.emit_instruction(ir::Instruction::LessThanEqual)
+                                }
+                                ast::RelationalOperator::GreaterThan => {
+                                    ctx.emit_instruction(ir::Instruction::GreaterThan)
+                                }
+                                ast::RelationalOperator::GreaterThanEqual => {
+                                    ctx.emit_instruction(ir::Instruction::GreaterThanEqual)
+                                }
+                            }
+                        }
+                    }
+
+                    // If this is true, jump to the case body
+                    ctx.emit_jump_if_true(&case_labels[branch_idx]);
+                }
+            }
+
+            // If no case matched, jump to else or end
+            if let Some(else_label_ref) = &else_label {
+                ctx.emit_jump(else_label_ref);
+            } else {
+                ctx.emit_jump(&end_label);
+            }
+
+            // Compile each case branch body
+            for (branch_idx, case_branch) in case_branches.iter().enumerate() {
+                ctx.place_label(&case_labels[branch_idx]);
+
+                // Compile statements in this case
+                for statement in &case_branch.statements {
+                    compile_statement_with_context(ctx, statement.clone());
+                }
+
+                // Jump to end (prevent fall-through)
+                ctx.emit_jump(&end_label);
+            }
+
+            // Compile else branch if present
+            if let (Some(else_label_ref), Some(else_stmts)) = (else_label, else_statements) {
+                ctx.place_label(&else_label_ref);
+                for statement in else_stmts {
+                    compile_statement_with_context(ctx, statement.clone());
+                }
+            }
+
+            // Place end label
+            ctx.place_label(&end_label);
         }
     }
 }
@@ -660,5 +836,25 @@ fn compile_expression(expr: ast::Expression) -> Vec<ir::Instruction> {
             )
             .collect()
         }
+    }
+}
+
+fn case_constant_to_ir_value(constant: &ast::CaseConstant) -> ir::Value {
+    match constant {
+        ast::CaseConstant::Integer(val) => {
+            // Try to fit in i16, otherwise use i32
+            TryInto::<i16>::try_into(*val)
+                .map(ir::Value::Integer)
+                .unwrap_or(ir::Value::Long(*val))
+        }
+        ast::CaseConstant::Float(val) => {
+            // Use single precision if possible, otherwise double
+            if *val >= f32::MIN as f64 && *val <= f32::MAX as f64 {
+                ir::Value::SinglePrecision(*val as f32)
+            } else {
+                ir::Value::DoublePrecision(*val)
+            }
+        }
+        ast::CaseConstant::String(val) => ir::Value::String(val.clone()),
     }
 }

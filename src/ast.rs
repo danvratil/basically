@@ -85,7 +85,10 @@ pub enum DoConditionType {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    NumberedStatement { line_number: u32, statement: PlainStatement },
+    NumberedStatement {
+        line_number: u32,
+        statement: PlainStatement,
+    },
     PlainStatement(PlainStatement),
 }
 
@@ -126,6 +129,37 @@ pub enum PlainStatement {
     ExitFor,
     Goto(GotoTarget),
     Label(String),
+    SelectCase {
+        test_expression: Expression,
+        case_branches: Vec<CaseBranch>,
+        else_statements: Option<Vec<Statement>>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum CaseConstant {
+    Integer(i32),
+    Float(f64),
+    String(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum CaseExpression {
+    Exact(CaseConstant),
+    Range {
+        from: CaseConstant,
+        to: CaseConstant,
+    },
+    Relational {
+        op: RelationalOperator,
+        value: CaseConstant,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct CaseBranch {
+    pub expressions: Vec<CaseExpression>,
+    pub statements: Vec<Statement>,
 }
 
 #[derive(Debug, Clone)]
@@ -142,7 +176,7 @@ impl Statement {
             Statement::PlainStatement(statement) => statement,
         }
     }
-    
+
     /// Get the line number if this is a numbered statement
     pub fn line_number(&self) -> Option<u32> {
         match self {
@@ -159,20 +193,24 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
         match statement.as_rule() {
             Rule::numbered_statement => {
                 let mut elements = statement.into_inner();
-                let line_number_pair = elements.next().ok_or(
-                    AstError::InvalidStatement("Missing line number".to_string()),
-                )?;
-                let statement_pair = elements.next().ok_or(
-                    AstError::InvalidStatement("Missing statement after line number".to_string()),
-                )?;
+                let line_number_pair = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing line number".to_string(),
+                ))?;
+                let statement_pair = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing statement after line number".to_string(),
+                ))?;
 
-                let line_number = line_number_pair.as_str().parse::<u32>().map_err(|_| {
-                    AstError::InvalidStatement("Invalid line number".to_string())
-                })?;
+                let line_number = line_number_pair
+                    .as_str()
+                    .parse::<u32>()
+                    .map_err(|_| AstError::InvalidStatement("Invalid line number".to_string()))?;
 
                 let statement = PlainStatement::try_from(statement_pair)?;
 
-                Ok(Statement::NumberedStatement { line_number, statement })
+                Ok(Statement::NumberedStatement {
+                    line_number,
+                    statement,
+                })
             }
             Rule::plain_statement => {
                 let statement = PlainStatement::try_from(statement)?;
@@ -180,9 +218,9 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
             }
             Rule::label_definition => {
                 let mut elements = statement.into_inner();
-                let identifier = elements.next().ok_or(
-                    AstError::InvalidStatement("Missing label identifier".to_string()),
-                )?;
+                let identifier = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing label identifier".to_string(),
+                ))?;
                 let label_name = identifier.as_str().to_string();
                 Ok(Statement::PlainStatement(PlainStatement::Label(label_name)))
             }
@@ -203,11 +241,14 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
 
     fn try_from(statement: Pair<'_, Rule>) -> Result<Self, Self::Error> {
         match statement.as_rule() {
-            Rule::plain_statement => {
-                Ok(PlainStatement::try_from(statement.into_inner().next().ok_or(
-                    AstError::InvalidStatement("Empty plain statement".to_string()),
-                )?)?)
-            }
+            Rule::plain_statement => Ok(PlainStatement::try_from(
+                statement
+                    .into_inner()
+                    .next()
+                    .ok_or(AstError::InvalidStatement(
+                        "Empty plain statement".to_string(),
+                    ))?,
+            )?),
             Rule::print_statement => Ok(PlainStatement::Print(Expression::try_from(
                 statement
                     .into_inner()
@@ -594,7 +635,10 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
                 // Parse statement list
                 let statements = parse_statement_list(elements[1].clone())?;
 
-                Ok(PlainStatement::While { condition, statements })
+                Ok(PlainStatement::While {
+                    condition,
+                    statements,
+                })
             }
             Rule::exit_statement => {
                 // The exit_statement rule matches "EXIT" followed by "DO" or "FOR"
@@ -613,9 +657,9 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
             }
             Rule::goto_statement => {
                 let mut elements = statement.into_inner();
-                let target_pair = elements.next().ok_or(
-                    AstError::InvalidStatement("Missing GOTO target".to_string()),
-                )?;
+                let target_pair = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing GOTO target".to_string(),
+                ))?;
 
                 let target = match target_pair.as_rule() {
                     Rule::number => {
@@ -624,9 +668,7 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
                         })?;
                         GotoTarget::LineNumber(line_number)
                     }
-                    Rule::identifier => {
-                        GotoTarget::Label(target_pair.as_str().to_string())
-                    }
+                    Rule::identifier => GotoTarget::Label(target_pair.as_str().to_string()),
                     _ => {
                         return Err(AstError::InvalidStatement(
                             "GOTO target must be line number or label".to_string(),
@@ -635,6 +677,43 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
                 };
 
                 Ok(PlainStatement::Goto(target))
+            }
+            Rule::select_case_statement => {
+                let mut elements = statement.into_inner();
+
+                // Parse test expression
+                let test_expression =
+                    Expression::try_from(elements.next().ok_or(AstError::InvalidStatement(
+                        "Missing test expression in SELECT CASE".to_string(),
+                    ))?)?;
+
+                let mut case_branches = Vec::new();
+                let mut else_statements = None;
+
+                // Parse all case branches and optional else branch
+                for element in elements {
+                    match element.as_rule() {
+                        Rule::case_branch => {
+                            case_branches.push(CaseBranch::try_from(element)?);
+                        }
+                        Rule::case_else_branch => {
+                            // Parse CASE ELSE statements
+                            let mut case_else_elements = element.into_inner();
+                            let statements_element =
+                                case_else_elements.next().ok_or(AstError::InvalidStatement(
+                                    "Missing statements in CASE ELSE".to_string(),
+                                ))?;
+                            else_statements = Some(parse_statement_list(statements_element)?);
+                        }
+                        _ => {} // Ignore other elements like keywords
+                    }
+                }
+
+                Ok(PlainStatement::SelectCase {
+                    test_expression,
+                    case_branches,
+                    else_statements,
+                })
             }
             _ => Err(AstError::InvalidStatement(format!(
                 "Expected plain statement, got {:?}",
@@ -647,7 +726,11 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
 fn parse_statement_list(statement_list: Pair<'_, Rule>) -> Result<Vec<Statement>, AstError> {
     statement_list
         .into_inner()
-        .map(|plain_stmt_pair| Ok(Statement::PlainStatement(PlainStatement::try_from(plain_stmt_pair)?)))
+        .map(|plain_stmt_pair| {
+            Ok(Statement::PlainStatement(PlainStatement::try_from(
+                plain_stmt_pair,
+            )?))
+        })
         .collect::<Result<Vec<_>, _>>()
 }
 
@@ -1094,6 +1177,140 @@ impl TryFrom<Pair<'_, Rule>> for Variable {
         }
 
         Ok(Variable { name, r#type })
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for CaseConstant {
+    type Error = AstError;
+
+    fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match value.as_rule() {
+            Rule::case_constant => {
+                // Get the inner element (number or string)
+                let inner = value
+                    .into_inner()
+                    .next()
+                    .ok_or(AstError::InvalidExpression(
+                        "Empty case constant".to_string(),
+                    ))?;
+                CaseConstant::try_from(inner)
+            }
+            Rule::number => {
+                let number = value.as_str();
+                if number.contains('.') {
+                    Ok(CaseConstant::Float(number.parse::<f64>().map_err(|e| {
+                        AstError::InvalidExpression(format!("Invalid float: {e}"))
+                    })?))
+                } else {
+                    Ok(CaseConstant::Integer(number.parse::<i32>().map_err(
+                        |e| AstError::InvalidExpression(format!("Invalid integer: {e}")),
+                    )?))
+                }
+            }
+            Rule::string => {
+                // Don't store the string with the quotes
+                let string = value.as_str();
+                Ok(CaseConstant::String(
+                    string[1..string.len() - 1].to_string(),
+                ))
+            }
+            _ => Err(AstError::InvalidExpression(format!(
+                "Expected case constant, got {:?}",
+                value.as_rule()
+            ))),
+        }
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for CaseExpression {
+    type Error = AstError;
+
+    fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match value.as_rule() {
+            Rule::case_expression => {
+                // Get the inner expression type
+                let inner = value
+                    .into_inner()
+                    .next()
+                    .ok_or(AstError::InvalidExpression(
+                        "Empty case expression".to_string(),
+                    ))?;
+                CaseExpression::try_from(inner)
+            }
+            Rule::case_exact_expression => {
+                let constant = CaseConstant::try_from(value.into_inner().next().ok_or(
+                    AstError::InvalidExpression("Missing constant in exact expression".to_string()),
+                )?)?;
+                Ok(CaseExpression::Exact(constant))
+            }
+            Rule::case_range_expression => {
+                let mut elements = value.into_inner();
+                let from = CaseConstant::try_from(elements.next().ok_or(
+                    AstError::InvalidExpression("Missing from constant in range".to_string()),
+                )?)?;
+                let to = CaseConstant::try_from(elements.next().ok_or(
+                    AstError::InvalidExpression("Missing to constant in range".to_string()),
+                )?)?;
+                Ok(CaseExpression::Range { from, to })
+            }
+            Rule::case_relational_expression => {
+                let mut elements = value.into_inner();
+                let op_pair = elements.next().ok_or(AstError::InvalidExpression(
+                    "Missing operator in relational expression".to_string(),
+                ))?;
+                let op = RelationalOperator::try_from(op_pair)?;
+                let value_constant =
+                    CaseConstant::try_from(elements.next().ok_or(AstError::InvalidExpression(
+                        "Missing value in relational expression".to_string(),
+                    ))?)?;
+                Ok(CaseExpression::Relational {
+                    op,
+                    value: value_constant,
+                })
+            }
+            _ => Err(AstError::InvalidExpression(format!(
+                "Expected case expression, got {:?}",
+                value.as_rule()
+            ))),
+        }
+    }
+}
+
+impl TryFrom<Pair<'_, Rule>> for CaseBranch {
+    type Error = AstError;
+
+    fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        match value.as_rule() {
+            Rule::case_branch => {
+                let mut elements = value.into_inner();
+
+                // Parse case expression list
+                let expr_list_pair = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing case expression list".to_string(),
+                ))?;
+
+                let expressions = expr_list_pair
+                    .into_inner()
+                    .map(CaseExpression::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                // Parse statement list
+                let statements_pair = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing statements in case branch".to_string(),
+                ))?;
+
+                let statements = parse_statement_list(statements_pair)?;
+
+                Ok(CaseBranch {
+                    expressions,
+                    statements,
+                })
+            }
+            _ => Err(AstError::InvalidStatement(format!(
+                "Expected case branch, got {:?}",
+                value.as_rule()
+            ))),
+        }
     }
 }
 

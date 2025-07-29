@@ -10,6 +10,7 @@ label_definition = { identifier ~ ":" }
 plain_statement = {
     for_statement |
     if_statement |
+    select_case_statement |
     do_statement |
     while_statement |
     exit_statement |
@@ -111,3 +112,32 @@ user_defined_type = { ASCII_ALPHA ~ ("." | ASCII_ALPHANUMERIC)* }
 
 array_subscripts = { array_subscript ~ ("," ~ array_subscript)* }
 array_subscript = { (logical_expression ~ "TO")? ~ logical_expression }
+
+select_case_statement = { 
+    "SELECT" ~ "CASE" ~ logical_expression ~ statement_separator ~ 
+    case_branch* ~ 
+    case_else_branch? ~ 
+    "END" ~ "SELECT" 
+}
+
+case_branch = { 
+    "CASE" ~ case_expression_list ~ statement_separator ~ statement_list 
+}
+
+case_else_branch = { 
+    "CASE" ~ "ELSE" ~ statement_separator ~ statement_list 
+}
+
+case_expression_list = { case_expression ~ ("," ~ case_expression)* }
+
+case_expression = {
+    case_range_expression |
+    case_relational_expression |
+    case_exact_expression
+}
+
+case_range_expression = { case_constant ~ "TO" ~ case_constant }
+case_relational_expression = { "IS" ~ relational_operator ~ case_constant }
+case_exact_expression = { case_constant }
+
+case_constant = { number | string }
