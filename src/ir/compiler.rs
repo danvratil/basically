@@ -134,7 +134,7 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
             statement,
         } => {
             // Place line number label first
-            let line_label = format!("LINE_{}", line_number);
+            let line_label = format!("LINE_{line_number}");
             ctx.place_label(&line_label);
 
             // Then compile the inner statement
@@ -569,7 +569,7 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
         }
         ast::PlainStatement::Goto(target) => {
             let label = match target {
-                ast::GotoTarget::LineNumber(num) => format!("LINE_{}", num),
+                ast::GotoTarget::LineNumber(num) => format!("LINE_{num}"),
                 ast::GotoTarget::Label(name) => name.clone(),
             };
             ctx.emit_jump(&label);
@@ -645,7 +645,7 @@ fn compile_plain_statement_with_context(ctx: &mut CompilerContext, statement: as
             // Generate comparison code for each case branch
             for (branch_idx, case_branch) in case_branches.iter().enumerate() {
                 // Generate comparison logic for all expressions in this case
-                for (_expr_idx, case_expr) in case_branch.expressions.iter().enumerate() {
+                for case_expr in case_branch.expressions.iter() {
                     // Load test variable
                     ctx.emit_instruction(ir::Instruction::LoadVar(temp_var.clone()));
 

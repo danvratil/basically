@@ -650,8 +650,7 @@ impl TryFrom<Pair<'_, Rule>> for PlainStatement {
                     Ok(PlainStatement::ExitFor)
                 } else {
                     Err(AstError::InvalidStatement(format!(
-                        "Invalid EXIT statement: {}",
-                        text
+                        "Invalid EXIT statement: {text}"
                     )))
                 }
             }
