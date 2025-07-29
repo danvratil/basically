@@ -1343,7 +1343,7 @@ mod tests {
     }
 
     fn parse_stmt(input: &str) -> Result<Statement, AstError> {
-        let pair = BasicParser::parse(Rule::statement, input)
+        let pair = BasicParser::parse(Rule::plain_statement, input)
             .map_err(|e| AstError::InvalidStatement(format!("Parse error: {}", e)))?
             .next()
             .ok_or_else(|| AstError::InvalidStatement("No statement found".to_string()))?;
@@ -1566,17 +1566,17 @@ mod tests {
         #[test]
         fn test_print_statement() {
             match parse_stmt("PRINT 42") {
-                Ok(Statement::Print(Expression::Integer(42))) => {}
+                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::Integer(42)))) => {}
                 _ => panic!("Expected print statement with integer")
             }
 
             match parse_stmt("PRINT \"Hello\"") {
-                Ok(Statement::Print(Expression::String(s))) if s == "Hello" => {}
+                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::String(s)))) if s == "Hello" => {}
                 _ => panic!("Expected print statement with string")
             }
 
             match parse_stmt("PRINT x") {
-                Ok(Statement::Print(Expression::Variable(Variable { name, .. }))) if name == "x" => {}
+                Ok(Statement::PlainStatement(PlainStatement::Print(Expression::Variable(Variable { name, .. })))) if name == "x" => {}
                 _ => panic!("Expected print statement with variable")
             }
         }
@@ -1584,17 +1584,17 @@ mod tests {
         #[test]
         fn test_assignment_statement() {
             match parse_stmt("x = 42") {
-                Ok(Statement::Assignment { target: AssignmentTarget::Variable(Variable { name, .. }), expression: Expression::Integer(42) }) if name == "x" => {}
+                Ok(Statement::PlainStatement(PlainStatement::Assignment { target: AssignmentTarget::Variable(Variable { name, .. }), expression: Expression::Integer(42) })) if name == "x" => {}
                 _ => panic!("Expected variable assignment")
             }
 
             match parse_stmt("arr(1) = 5") {
-                Ok(Statement::Assignment { target: AssignmentTarget::ArrayElement(ArrayAccess { name, .. }), expression: Expression::Integer(5) }) if name == "arr" => {}
+                Ok(Statement::PlainStatement(PlainStatement::Assignment { target: AssignmentTarget::ArrayElement(ArrayAccess { name, .. }), expression: Expression::Integer(5) })) if name == "arr" => {}
                 _ => panic!("Expected array element assignment")
             }
 
             match parse_stmt("name$ = \"John\"") {
-                Ok(Statement::Assignment { target: AssignmentTarget::Variable(Variable { name, r#type: VariableType::String }), expression: Expression::String(s) }) if name == "name" && s == "John" => {}
+                Ok(Statement::PlainStatement(PlainStatement::Assignment { target: AssignmentTarget::Variable(Variable { name, r#type: VariableType::String }), expression: Expression::String(s) })) if name == "name" && s == "John" => {}
                 _ => panic!("Expected string variable assignment")
             }
         }
@@ -1602,7 +1602,7 @@ mod tests {
         #[test]
         fn test_input_statement() {
             match parse_stmt("INPUT x") {
-                Ok(Statement::Input { prompt: None, variables }) => {
+                Ok(Statement::PlainStatement(PlainStatement::Input { prompt: None, variables })) => {
                     assert_eq!(variables.len(), 1);
                     assert_eq!(variables[0].name, "x");
                 }
@@ -1610,7 +1610,7 @@ mod tests {
             }
 
             match parse_stmt("INPUT \"Enter name: \"; name$") {
-                Ok(Statement::Input { prompt: Some(p), variables }) => {
+                Ok(Statement::PlainStatement(PlainStatement::Input { prompt: Some(p), variables })) => {
                     assert_eq!(p, "Enter name: ");
                     assert_eq!(variables.len(), 1);
                     assert_eq!(variables[0].name, "name");
@@ -1620,7 +1620,7 @@ mod tests {
             }
 
             match parse_stmt("INPUT x, y, z") {
-                Ok(Statement::Input { prompt: None, variables }) => {
+                Ok(Statement::PlainStatement(PlainStatement::Input { prompt: None, variables })) => {
                     assert_eq!(variables.len(), 3);
                     assert_eq!(variables[0].name, "x");
                     assert_eq!(variables[1].name, "y");
@@ -1633,7 +1633,7 @@ mod tests {
         #[test]
         fn test_dim_statement() {
             match parse_stmt("DIM arr(10)") {
-                Ok(Statement::Dim(ArrayDeclaration { name, element_type, dimensions })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration { name, element_type, dimensions }))) => {
                     assert_eq!(name, "arr");
                     assert_eq!(element_type, VariableType::Integer);
                     assert_eq!(dimensions.len(), 1);
@@ -1644,7 +1644,7 @@ mod tests {
             }
 
             match parse_stmt("DIM matrix(1 TO 10, 1 TO 5) AS INTEGER") {
-                Ok(Statement::Dim(ArrayDeclaration { name, element_type, dimensions })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration { name, element_type, dimensions }))) => {
                     assert_eq!(name, "matrix");
                     assert_eq!(element_type, VariableType::Integer);
                     assert_eq!(dimensions.len(), 2);
@@ -1657,7 +1657,7 @@ mod tests {
             }
 
             match parse_stmt("DIM names(100) AS STRING") {
-                Ok(Statement::Dim(ArrayDeclaration { name, element_type, dimensions })) => {
+                Ok(Statement::PlainStatement(PlainStatement::Dim(ArrayDeclaration { name, element_type, dimensions }))) => {
                     assert_eq!(name, "names");
                     assert_eq!(element_type, VariableType::String);
                     assert_eq!(dimensions.len(), 1);
@@ -1669,22 +1669,22 @@ mod tests {
         #[test]
         fn test_comment_statement() {
             match parse_stmt("REM This is a comment") {
-                Ok(Statement::Noop) => {}
+                Ok(Statement::PlainStatement(PlainStatement::Noop)) => {}
                 _ => panic!("Expected noop for regular comment")
             }
 
             match parse_stmt("' This is also a comment") {
-                Ok(Statement::Noop) => {}
+                Ok(Statement::PlainStatement(PlainStatement::Noop)) => {}
                 _ => panic!("Expected noop for apostrophe comment")
             }
 
             match parse_stmt("REM $STATIC") {
-                Ok(Statement::Metacommand(Metacommand::Static)) => {}
+                Ok(Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Static))) => {}
                 _ => panic!("Expected static metacommand")
             }
 
             match parse_stmt("' $DYNAMIC") {
-                Ok(Statement::Metacommand(Metacommand::Dynamic)) => {}
+                Ok(Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Dynamic))) => {}
                 _ => panic!("Expected dynamic metacommand")
             }
         }
@@ -1692,12 +1692,12 @@ mod tests {
         #[test]
         fn test_exit_statements() {
             match parse_stmt("EXIT DO") {
-                Ok(Statement::ExitDo) => {}
+                Ok(Statement::PlainStatement(PlainStatement::ExitDo)) => {}
                 _ => panic!("Expected EXIT DO")
             }
 
             match parse_stmt("EXIT FOR") {
-                Ok(Statement::ExitFor) => {}
+                Ok(Statement::PlainStatement(PlainStatement::ExitFor)) => {}
                 _ => panic!("Expected EXIT FOR")
             }
         }
@@ -1971,9 +1971,9 @@ mod tests {
             match parse_program(input) {
                 Ok(Program { statements }) => {
                     assert_eq!(statements.len(), 3);
-                    assert!(matches!(statements[0], Statement::Assignment { .. }));
-                    assert!(matches!(statements[1], Statement::Print(_)));
-                    assert!(matches!(statements[2], Statement::Assignment { .. }));
+                    assert!(matches!(statements[0], Statement::PlainStatement(PlainStatement::Assignment { .. })));
+                    assert!(matches!(statements[1], Statement::PlainStatement(PlainStatement::Print(_))));
+                    assert!(matches!(statements[2], Statement::PlainStatement(PlainStatement::Assignment { .. })));
                 }
                 _ => panic!("Expected multi-statement program")
             }
@@ -1986,9 +1986,9 @@ mod tests {
                 Ok(Program { statements }) => {
                     // Comments are parsed as separate statements (Noop)
                     assert_eq!(statements.len(), 3); // assignment, comment (noop), print
-                    assert!(matches!(statements[0], Statement::Assignment { .. }));
-                    assert!(matches!(statements[1], Statement::Noop));
-                    assert!(matches!(statements[2], Statement::Print(_)));
+                    assert!(matches!(statements[0], Statement::PlainStatement(PlainStatement::Assignment { .. })));
+                    assert!(matches!(statements[1], Statement::PlainStatement(PlainStatement::Noop)));
+                    assert!(matches!(statements[2], Statement::PlainStatement(PlainStatement::Print(_))));
                 }
                 _ => panic!("Expected program with inline comments")
             }
@@ -2014,7 +2014,7 @@ mod tests {
             // Test assignment with complex right-hand side
             let input = "result = (a + b) * c - arr(i)";
             match parse_stmt(input) {
-                Ok(Statement::Assignment { target, expression }) => {
+                Ok(Statement::PlainStatement(PlainStatement::Assignment { target, expression })) => {
                     assert!(matches!(target, AssignmentTarget::Variable(_)));
                     assert!(matches!(expression, Expression::BinaryOp { .. }));
                 }

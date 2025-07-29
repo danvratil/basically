@@ -858,3 +858,569 @@ fn case_constant_to_ir_value(constant: &ast::CaseConstant) -> ir::Value {
         ast::CaseConstant::String(val) => ir::Value::String(val.clone()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Variable, VariableType, Expression, PlainStatement, BinaryOperator, UnaryOperator, LogicalOperator, RelationalOperator, AssignmentTarget, ArrayAccess, IfBranch, Metacommand};
+    use crate::ir::{Instruction, Value};
+
+    // Helper functions for creating test AST nodes
+    fn create_int_expr(value: i32) -> Expression {
+        Expression::Integer(value)
+    }
+
+    fn create_float_expr(value: f64) -> Expression {
+        Expression::Float(value)
+    }
+
+    fn create_string_expr(value: &str) -> Expression {
+        Expression::String(value.to_string())
+    }
+
+    fn create_var_expr(name: &str, var_type: VariableType) -> Expression {
+        Expression::Variable(Variable {
+            name: name.to_string(),
+            r#type: var_type,
+        })
+    }
+
+    fn create_var(name: &str, var_type: VariableType) -> Variable {
+        Variable {
+            name: name.to_string(),
+            r#type: var_type,
+        }
+    }
+
+    mod expression_compilation {
+        use super::*;
+
+        #[test]
+        fn test_compile_integer_literal() {
+            let expr = create_int_expr(42);
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 1);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(42))));
+        }
+
+        #[test]
+        fn test_compile_large_integer() {
+            let expr = create_int_expr(100000); // Larger than i16::MAX
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 1);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Long(100000))));
+        }
+
+        #[test]
+        fn test_compile_float_literal() {
+            let expr = create_float_expr(3.14);
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 1);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::SinglePrecision(f)) if (f - 3.14).abs() < f32::EPSILON));
+        }
+
+        #[test]
+        fn test_compile_large_float() {
+            let expr = create_float_expr(1e50); // Larger than f32::MAX
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 1);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::DoublePrecision(f)) if f == 1e50));
+        }
+
+        #[test]
+        fn test_compile_string_literal() {
+            let expr = create_string_expr("Hello World");
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 1);
+            assert!(matches!(&instructions[0], Instruction::LoadConst(Value::String(s)) if s == "Hello World"));
+        }
+
+        #[test]
+        fn test_compile_variable() {
+            let expr = create_var_expr("x", VariableType::Integer);
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 1);
+            assert!(matches!(&instructions[0], Instruction::LoadVar(Variable { name, r#type }) if name == "x" && *r#type == VariableType::Integer));
+        }
+
+        #[test]
+        fn test_compile_binary_addition() {
+            let expr = Expression::BinaryOp {
+                left: Box::new(create_int_expr(2)),
+                op: BinaryOperator::Add,
+                right: Box::new(create_int_expr(3)),
+            };
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 3);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(2))));
+            assert!(matches!(instructions[1], Instruction::LoadConst(Value::Integer(3))));
+            assert!(matches!(instructions[2], Instruction::Add));
+        }
+
+        #[test]
+        fn test_compile_binary_operations() {
+            let test_cases = vec![
+                (BinaryOperator::Subtract, Instruction::Subtract),
+                (BinaryOperator::Multiply, Instruction::Multiply),
+                (BinaryOperator::Divide, Instruction::Divide),
+            ];
+
+            for (ast_op, expected_instr) in test_cases {
+                let expr = Expression::BinaryOp {
+                    left: Box::new(create_int_expr(5)),
+                    op: ast_op,
+                    right: Box::new(create_int_expr(2)),
+                };
+                let instructions = compile_expression(expr);
+                assert_eq!(instructions.len(), 3);
+                assert!(matches!(&instructions[2], instr if std::mem::discriminant(instr) == std::mem::discriminant(&expected_instr)));
+            }
+        }
+
+        #[test]
+        fn test_compile_unary_operations() {
+            // Unary plus
+            let expr = Expression::UnaryOp {
+                op: UnaryOperator::Plus,
+                operand: Box::new(create_int_expr(5)),
+            };
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 2);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(5))));
+            assert!(matches!(instructions[1], Instruction::UnaryPlus));
+
+            // Unary minus
+            let expr = Expression::UnaryOp {
+                op: UnaryOperator::Minus,
+                operand: Box::new(create_int_expr(5)),
+            };
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 2);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(5))));
+            assert!(matches!(instructions[1], Instruction::UnaryMinus));
+        }
+
+        #[test]
+        fn test_compile_logical_operations() {
+            // Binary AND
+            let expr = Expression::LogicalOp {
+                left: Some(Box::new(create_var_expr("a", VariableType::Integer))),
+                op: LogicalOperator::And,
+                right: Box::new(create_var_expr("b", VariableType::Integer)),
+            };
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 3);
+            assert!(matches!(instructions[2], Instruction::And));
+
+            // Binary OR
+            let expr = Expression::LogicalOp {
+                left: Some(Box::new(create_var_expr("a", VariableType::Integer))),
+                op: LogicalOperator::Or,
+                right: Box::new(create_var_expr("b", VariableType::Integer)),
+            };
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 3);
+            assert!(matches!(instructions[2], Instruction::Or));
+
+            // Unary NOT
+            let expr = Expression::LogicalOp {
+                left: None,
+                op: LogicalOperator::Not,
+                right: Box::new(create_var_expr("a", VariableType::Integer)),
+            };
+            let instructions = compile_expression(expr);
+            assert_eq!(instructions.len(), 2);
+            assert!(matches!(instructions[1], Instruction::Not));
+        }
+
+        #[test]
+        fn test_compile_relational_operations() {
+            let test_cases = vec![
+                (RelationalOperator::Equal, Instruction::Equal),
+                (RelationalOperator::NotEqual, Instruction::NotEqual),
+                (RelationalOperator::LessThan, Instruction::LessThan),
+                (RelationalOperator::LessThanEqual, Instruction::LessThanEqual),
+                (RelationalOperator::GreaterThan, Instruction::GreaterThan),
+                (RelationalOperator::GreaterThanEqual, Instruction::GreaterThanEqual),
+            ];
+
+            for (ast_op, expected_instr) in test_cases {
+                let expr = Expression::RelationalOp {
+                    left: Box::new(create_int_expr(5)),
+                    op: ast_op,
+                    right: Box::new(create_int_expr(3)),
+                };
+                let instructions = compile_expression(expr);
+                assert_eq!(instructions.len(), 3);
+                assert!(matches!(&instructions[2], instr if std::mem::discriminant(instr) == std::mem::discriminant(&expected_instr)));
+            }
+        }
+
+        #[test]
+        fn test_compile_array_access() {
+            let array_access = ArrayAccess {
+                name: "arr".to_string(),
+                indices: vec![create_int_expr(1), create_int_expr(2)],
+            };
+            let expr = Expression::ArrayAccess(array_access);
+            let instructions = compile_expression(expr);
+            
+            assert_eq!(instructions.len(), 3);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(1))));
+            assert!(matches!(instructions[1], Instruction::LoadConst(Value::Integer(2))));
+            assert!(matches!(&instructions[2], Instruction::LoadArrayElement { name, num_indices } if name == "arr" && *num_indices == 2));
+        }
+
+        #[test]
+        fn test_compile_complex_expression() {
+            // Test: (2 + 3) * 4
+            let expr = Expression::BinaryOp {
+                left: Box::new(Expression::BinaryOp {
+                    left: Box::new(create_int_expr(2)),
+                    op: BinaryOperator::Add,
+                    right: Box::new(create_int_expr(3)),
+                }),
+                op: BinaryOperator::Multiply,
+                right: Box::new(create_int_expr(4)),
+            };
+            let instructions = compile_expression(expr);
+            
+            // Should compile to: LoadConst(2), LoadConst(3), Add, LoadConst(4), Multiply
+            assert_eq!(instructions.len(), 5);
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(2))));
+            assert!(matches!(instructions[1], Instruction::LoadConst(Value::Integer(3))));
+            assert!(matches!(instructions[2], Instruction::Add));
+            assert!(matches!(instructions[3], Instruction::LoadConst(Value::Integer(4))));
+            assert!(matches!(instructions[4], Instruction::Multiply));
+        }
+    }
+
+    mod statement_compilation {
+        use super::*;
+        use crate::ast::Statement;
+
+        #[test]
+        fn test_compile_print_statement() {
+            let stmt = Statement::PlainStatement(PlainStatement::Print(create_int_expr(42)));
+            let program = compile(ast::Program { statements: vec![stmt] });
+            
+            assert_eq!(program.instructions.len(), 3); // LoadConst, Print, Halt
+            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(program.instructions[1], Instruction::Print));
+            assert!(matches!(program.instructions[2], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_variable_assignment() {
+            let stmt = Statement::PlainStatement(PlainStatement::Assignment {
+                target: AssignmentTarget::Variable(create_var("x", VariableType::Integer)),
+                expression: create_int_expr(42),
+            });
+            let program = compile(ast::Program { statements: vec![stmt] });
+            
+            assert_eq!(program.instructions.len(), 3); // LoadConst, StoreVar, Halt
+            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(&program.instructions[1], Instruction::StoreVar(Variable { name, .. }) if name == "x"));
+            assert!(matches!(program.instructions[2], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_array_assignment() {
+            let array_access = ArrayAccess {
+                name: "arr".to_string(),
+                indices: vec![create_int_expr(1)],
+            };
+            let stmt = Statement::PlainStatement(PlainStatement::Assignment {
+                target: AssignmentTarget::ArrayElement(array_access),
+                expression: create_int_expr(42),
+            });
+            let program = compile(ast::Program { statements: vec![stmt] });
+            
+            // Should be: LoadConst(1), LoadConst(42), StoreArrayElement, Halt
+            assert_eq!(program.instructions.len(), 4);
+            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(1))));
+            assert!(matches!(program.instructions[1], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(&program.instructions[2], Instruction::StoreArrayElement { name, num_indices } if name == "arr" && *num_indices == 1));
+            assert!(matches!(program.instructions[3], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_input_statement() {
+            let stmt = Statement::PlainStatement(PlainStatement::Input {
+                prompt: Some("Enter a number: ".to_string()),
+                variables: vec![create_var("x", VariableType::Integer)],
+            });
+            let program = compile(ast::Program { statements: vec![stmt] });
+            
+            // Should be: LoadConst("Enter a number: "), Print, Input([x]), Halt
+            assert_eq!(program.instructions.len(), 4);
+            assert!(matches!(&program.instructions[0], Instruction::LoadConst(Value::String(s)) if s == "Enter a number: "));
+            assert!(matches!(program.instructions[1], Instruction::Print));
+            assert!(matches!(&program.instructions[2], Instruction::Input(vars) if vars.len() == 1));
+            assert!(matches!(program.instructions[3], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_input_without_prompt() {
+            let stmt = Statement::PlainStatement(PlainStatement::Input {
+                prompt: None,
+                variables: vec![create_var("x", VariableType::Integer)],
+            });
+            let program = compile(ast::Program { statements: vec![stmt] });
+            
+            // Should be: Input([x]), Halt
+            assert_eq!(program.instructions.len(), 2);
+            assert!(matches!(&program.instructions[0], Instruction::Input(vars) if vars.len() == 1));
+            assert!(matches!(program.instructions[1], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_metacommands() {
+            let static_stmt = Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Static));
+            let dynamic_stmt = Statement::PlainStatement(PlainStatement::Metacommand(Metacommand::Dynamic));
+            let program = compile(ast::Program { statements: vec![static_stmt, dynamic_stmt] });
+            
+            assert_eq!(program.instructions.len(), 3); // SetStatic, SetDynamic, Halt
+            assert!(matches!(program.instructions[0], Instruction::SetStatic));
+            assert!(matches!(program.instructions[1], Instruction::SetDynamic));
+            assert!(matches!(program.instructions[2], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_noop_statement() {
+            let stmt = Statement::PlainStatement(PlainStatement::Noop);
+            let program = compile(ast::Program { statements: vec![stmt] });
+            
+            assert_eq!(program.instructions.len(), 1); // Just Halt
+            assert!(matches!(program.instructions[0], Instruction::Halt));
+        }
+    }
+
+    mod control_flow_compilation {
+        use super::*;
+        use crate::ast::Statement;
+
+        #[test]
+        fn test_compile_simple_if_statement() {
+            let if_stmt = Statement::PlainStatement(PlainStatement::If {
+                branches: vec![IfBranch {
+                    condition: Some(create_int_expr(1)),
+                    statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("True")))],
+                }],
+            });
+            let program = compile(ast::Program { statements: vec![if_stmt] });
+            
+            // Program structure should be:
+            // LoadConst(1), JumpIfFalse(end), LoadConst("True"), Print, end:, Halt
+            let instructions = &program.instructions;
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(1))));
+            assert!(matches!(instructions[1], Instruction::JumpIfFalse(_)));
+            assert!(matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "True"));
+            assert!(matches!(instructions[3], Instruction::Print));
+            assert!(matches!(instructions[4], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_if_else_statement() {
+            let if_stmt = Statement::PlainStatement(PlainStatement::If {
+                branches: vec![
+                    IfBranch {
+                        condition: Some(create_int_expr(1)),
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("True")))],
+                    },
+                    IfBranch {
+                        condition: None, // ELSE branch
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("False")))],
+                    },
+                ],
+            });
+            let program = compile(ast::Program { statements: vec![if_stmt] });
+            
+            let instructions = &program.instructions;
+            // Should have jump structure for if-else
+            assert!(matches!(instructions[0], Instruction::LoadConst(Value::Integer(1))));
+            assert!(matches!(instructions[1], Instruction::JumpIfFalse(_)));
+            assert!(matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "True"));
+            assert!(matches!(instructions[3], Instruction::Print));
+            assert!(matches!(instructions[4], Instruction::Jump(_))); // Jump to end
+            assert!(matches!(instructions[5], Instruction::LoadConst(Value::String(ref s)) if s == "False"));
+            assert!(matches!(instructions[6], Instruction::Print));
+            assert!(matches!(instructions[7], Instruction::Halt));
+
+            // Verify jump targets are reasonable (not testing exact values due to label generation)
+            if let Instruction::JumpIfFalse(target) = instructions[1] {
+                assert!(target > 4 && target < instructions.len());
+            }
+            if let Instruction::Jump(target) = instructions[4] {
+                assert!(target >= 7 && target <= instructions.len());
+            }
+        }
+
+        #[test]
+        fn test_compile_while_statement() {
+            let while_stmt = Statement::PlainStatement(PlainStatement::While {
+                condition: create_var_expr("x", VariableType::Integer),
+                statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Loop")))],
+            });
+            let program = compile(ast::Program { statements: vec![while_stmt] });
+            
+            let instructions = &program.instructions;
+            // While loop structure: condition_check:, LoadVar(x), JumpIfFalse(end), LoadConst("Loop"), Print, Jump(condition_check), end:, Halt
+            assert!(matches!(instructions[0], Instruction::LoadVar(_)));
+            assert!(matches!(instructions[1], Instruction::JumpIfFalse(_)));
+            assert!(matches!(instructions[2], Instruction::LoadConst(Value::String(ref s)) if s == "Loop"));
+            assert!(matches!(instructions[3], Instruction::Print));
+            assert!(matches!(instructions[4], Instruction::Jump(_))); // Jump back to condition
+            assert!(matches!(instructions[5], Instruction::Halt));
+        }
+    }
+
+    mod compiler_context_tests {
+        use super::*;
+
+        #[test]
+        fn test_label_generation() {
+            let mut ctx = CompilerContext::new();
+            let label1 = ctx.generate_label();
+            let label2 = ctx.generate_label();
+            
+            assert_eq!(label1, "L0");
+            assert_eq!(label2, "L1");
+            assert_ne!(label1, label2);
+        }
+
+        #[test]
+        fn test_instruction_emission() {
+            let mut ctx = CompilerContext::new();
+            ctx.emit_instruction(Instruction::LoadConst(Value::Integer(42)));
+            ctx.emit_instruction(Instruction::Print);
+            
+            assert_eq!(ctx.instructions.len(), 2);
+            assert!(matches!(ctx.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(ctx.instructions[1], Instruction::Print));
+        }
+
+        #[test]
+        fn test_jump_patching() {
+            let mut ctx = CompilerContext::new();
+            let label = "test_label";
+            
+            // Emit a jump to a label that doesn't exist yet
+            ctx.emit_jump(label);
+            ctx.emit_instruction(Instruction::Print);
+            
+            // Place the label
+            ctx.place_label(label);
+            ctx.emit_instruction(Instruction::Halt);
+            
+            // Resolve jumps
+            ctx.resolve_jumps();
+            
+            // The jump should now point to the instruction after Print (index 2)
+            assert!(matches!(ctx.instructions[0], Instruction::Jump(2)));
+            assert!(matches!(ctx.instructions[1], Instruction::Print));
+            assert!(matches!(ctx.instructions[2], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_loop_context_management() {
+            let mut ctx = CompilerContext::new();
+            
+            // Test empty loop stack
+            assert!(ctx.find_loop_end_label("FOR").is_none());
+            assert!(ctx.find_loop_end_label("DO").is_none());
+            
+            // Push a FOR loop context
+            ctx.push_loop_context(LoopContext::For {
+                end_label: "for_end".to_string(),
+            });
+            
+            assert_eq!(ctx.find_loop_end_label("FOR"), Some(&"for_end".to_string()));
+            assert!(ctx.find_loop_end_label("DO").is_none());
+            
+            // Push a DO loop context
+            ctx.push_loop_context(LoopContext::Do {
+                end_label: "do_end".to_string(),
+            });
+            
+            // Should find the most recent DO loop
+            assert_eq!(ctx.find_loop_end_label("DO"), Some(&"do_end".to_string()));
+            assert_eq!(ctx.find_loop_end_label("FOR"), Some(&"for_end".to_string()));
+            
+            // Pop DO context
+            ctx.pop_loop_context();
+            assert!(ctx.find_loop_end_label("DO").is_none());
+            assert_eq!(ctx.find_loop_end_label("FOR"), Some(&"for_end".to_string()));
+            
+            // Pop FOR context
+            ctx.pop_loop_context();
+            assert!(ctx.find_loop_end_label("FOR").is_none());
+        }
+    }
+
+    mod integration_tests {
+        use super::*;
+        use crate::ast::Statement;
+
+        #[test]
+        fn test_compile_empty_program() {
+            let program = compile(ast::Program { statements: vec![] });
+            assert_eq!(program.instructions.len(), 1);
+            assert!(matches!(program.instructions[0], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_compile_multi_statement_program() {
+            let statements = vec![
+                Statement::PlainStatement(PlainStatement::Assignment {
+                    target: AssignmentTarget::Variable(create_var("x", VariableType::Integer)),
+                    expression: create_int_expr(42),
+                }),
+                Statement::PlainStatement(PlainStatement::Print(create_var_expr("x", VariableType::Integer))),
+            ];
+            let program = compile(ast::Program { statements });
+            
+            // Should be: LoadConst(42), StoreVar(x), LoadVar(x), Print, Halt
+            assert_eq!(program.instructions.len(), 5);
+            assert!(matches!(program.instructions[0], Instruction::LoadConst(Value::Integer(42))));
+            assert!(matches!(program.instructions[1], Instruction::StoreVar(_)));
+            assert!(matches!(program.instructions[2], Instruction::LoadVar(_)));
+            assert!(matches!(program.instructions[3], Instruction::Print));
+            assert!(matches!(program.instructions[4], Instruction::Halt));
+        }
+
+        #[test]
+        fn test_jump_resolution_integrity() {
+            // Test that all jumps in a complex program resolve to valid instruction indices
+            let if_stmt = Statement::PlainStatement(PlainStatement::If {
+                branches: vec![
+                    IfBranch {
+                        condition: Some(create_int_expr(1)),
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Branch 1")))],
+                    },
+                    IfBranch {
+                        condition: Some(create_int_expr(2)),
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Branch 2")))],
+                    },
+                    IfBranch {
+                        condition: None,
+                        statements: vec![ast::Statement::PlainStatement(PlainStatement::Print(create_string_expr("Else")))],
+                    },
+                ],
+            });
+            let program = compile(ast::Program { statements: vec![if_stmt] });
+            
+            // Verify all jump targets are within valid instruction range
+            for (i, instruction) in program.instructions.iter().enumerate() {
+                match instruction {
+                    Instruction::Jump(target) | Instruction::JumpIfFalse(target) | Instruction::JumpIfTrue(target) => {
+                        assert!(*target < program.instructions.len(), 
+                               "Jump at index {} has invalid target {}, program has {} instructions", 
+                               i, target, program.instructions.len());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
