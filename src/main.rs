@@ -9,6 +9,7 @@ use basically::{default_input_handler, default_output_handler, ir};
 
 use pest::Parser;
 use pest::iterators::Pair;
+use std::io::{self, Read};
 
 fn print_pair(pair: &Pair<Rule>, indent: usize) {
     let indent_str = " ".repeat(indent);
@@ -24,13 +25,15 @@ fn print_pair(pair: &Pair<Rule>, indent: usize) {
 }
 
 fn main() {
-    let input = "PRINT 1 + 2 * 3";
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input).expect("Failed to read from stdin");
+    
     println!("=== PROGRAM ====");
     println!("{}", input);
 
     println!("\n=== PARSER ===");
 
-    let mut pairs = BasicParser::parse(Rule::program, input).expect("Failed to parse input");
+    let mut pairs = BasicParser::parse(Rule::program, &input).expect("Failed to parse input");
     for pair in pairs.clone() {
         print_pair(&pair, 0);
     }
