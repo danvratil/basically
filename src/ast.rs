@@ -91,6 +91,13 @@ pub enum Statement {
     If {
         branches: Vec<IfBranch>, // First is IF, middle are ELSEIF, last might be ELSE
     },
+    For {
+        counter: Variable,
+        start: Expression,
+        end: Expression,
+        step: Option<Expression>, // None means step = 1
+        statements: Vec<Statement>,
+    },
 }
 
 impl TryFrom<Pair<'_, Rule>> for Statement {
@@ -263,6 +270,51 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                     element_type,
                     dimensions,
                 }))
+            }
+            Rule::for_statement => {
+                let mut elements = statement.into_inner();
+
+                // Parse counter variable
+                let counter = Variable::try_from(elements.next().ok_or(
+                    AstError::InvalidStatement("Missing counter variable".to_string()),
+                )?)?;
+
+                // Parse start expression
+                let start = Expression::try_from(elements.next().ok_or(
+                    AstError::InvalidStatement("Missing start expression".to_string()),
+                )?)?;
+
+                // Parse end expression
+                let end = Expression::try_from(elements.next().ok_or(
+                    AstError::InvalidStatement("Missing end expression".to_string()),
+                )?)?;
+
+                // Parse optional step expression
+                let mut step = None;
+                let mut statements_element = elements.next().ok_or(AstError::InvalidStatement(
+                    "Missing statement list".to_string(),
+                ))?;
+
+                // Check if the next element is a step expression or statement list
+                if statements_element.as_rule() == Rule::expression {
+                    step = Some(Expression::try_from(statements_element)?);
+                    statements_element = elements.next().ok_or(AstError::InvalidStatement(
+                        "Missing statement list after STEP".to_string(),
+                    ))?;
+                }
+
+                // Parse statement list
+                let statements = parse_statement_list(statements_element)?;
+
+                // Skip optional NEXT variable (we don't validate it matches counter for now)
+
+                Ok(Statement::For {
+                    counter,
+                    start,
+                    end,
+                    step,
+                    statements,
+                })
             }
             Rule::if_statement => {
                 let elements = statement.into_inner().collect::<Vec<_>>();

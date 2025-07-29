@@ -54,6 +54,15 @@ impl CompilerContext {
         self.instructions.push(ir::Instruction::JumpIfFalse(0)); // placeholder, will be patched
     }
 
+    fn emit_jump_if_true(&mut self, label: &str) {
+        let jump_index = self.instructions.len();
+        self.jump_patches
+            .entry(label.to_string())
+            .or_default()
+            .push(jump_index);
+        self.instructions.push(ir::Instruction::JumpIfTrue(0)); // placeholder, will be patched
+    }
+
     fn place_label(&mut self, label: &str) {
         let position = self.instructions.len();
         self.label_positions.insert(label.to_string(), position);
@@ -207,6 +216,94 @@ fn compile_statement_with_context(ctx: &mut CompilerContext, statement: ast::Sta
 
             // Place end label
             ctx.place_label(&end_label);
+        }
+        ast::Statement::For {
+            counter,
+            start,
+            end,
+            step,
+            statements,
+        } => {
+            // Generate unique labels for this FOR loop
+            let for_check_label = ctx.generate_label();
+            let for_body_label = ctx.generate_label();
+            let for_end_label = ctx.generate_label();
+            let positive_step_label = ctx.generate_label();
+
+            // Generate unique temporary variable names for this loop
+            let loop_id = ctx.label_counter;
+            let end_var_name = format!("__for_end_{loop_id}");
+            let step_var_name = format!("__for_step_{loop_id}");
+
+            // Create temporary variables for end and step values
+            let end_var = ast::Variable {
+                name: end_var_name,
+                r#type: counter.r#type.clone(),
+            };
+            let step_var = ast::Variable {
+                name: step_var_name,
+                r#type: counter.r#type.clone(),
+            };
+
+            // Initialize counter with start value
+            for instruction in compile_expression(start.clone()) {
+                ctx.emit_instruction(instruction);
+            }
+            ctx.emit_instruction(ir::Instruction::StoreVar(counter.clone()));
+
+            // Store end value in temporary variable
+            for instruction in compile_expression(end.clone()) {
+                ctx.emit_instruction(instruction);
+            }
+            ctx.emit_instruction(ir::Instruction::StoreVar(end_var.clone()));
+
+            // Store step value in temporary variable (default to 1 if None)
+            let step_expr = step.clone().unwrap_or(ast::Expression::Integer(1));
+            for instruction in compile_expression(step_expr) {
+                ctx.emit_instruction(instruction);
+            }
+            ctx.emit_instruction(ir::Instruction::StoreVar(step_var.clone()));
+
+            // Jump to condition check
+            ctx.emit_jump(&for_check_label);
+
+            // FOR loop body
+            ctx.place_label(&for_body_label);
+            for statement in statements {
+                compile_statement_with_context(ctx, statement.clone());
+            }
+
+            // Increment counter by step
+            ctx.emit_instruction(ir::Instruction::LoadVar(counter.clone()));
+            ctx.emit_instruction(ir::Instruction::LoadVar(step_var.clone()));
+            ctx.emit_instruction(ir::Instruction::Add);
+            ctx.emit_instruction(ir::Instruction::StoreVar(counter.clone()));
+
+            // FOR loop condition check
+            ctx.place_label(&for_check_label);
+
+            // Determine comparison based on step sign
+            ctx.emit_instruction(ir::Instruction::LoadVar(step_var.clone()));
+            ctx.emit_instruction(ir::Instruction::LoadConst(ir::Value::Integer(0)));
+            ctx.emit_instruction(ir::Instruction::GreaterThanEqual);
+            ctx.emit_jump_if_true(&positive_step_label);
+
+            // Negative step: continue if counter >= end
+            ctx.emit_instruction(ir::Instruction::LoadVar(counter.clone()));
+            ctx.emit_instruction(ir::Instruction::LoadVar(end_var.clone()));
+            ctx.emit_instruction(ir::Instruction::GreaterThanEqual);
+            ctx.emit_jump_if_true(&for_body_label);
+            ctx.emit_jump(&for_end_label);
+
+            // Positive step: continue if counter <= end
+            ctx.place_label(&positive_step_label);
+            ctx.emit_instruction(ir::Instruction::LoadVar(counter.clone()));
+            ctx.emit_instruction(ir::Instruction::LoadVar(end_var.clone()));
+            ctx.emit_instruction(ir::Instruction::LessThanEqual);
+            ctx.emit_jump_if_true(&for_body_label);
+
+            // End of FOR loop
+            ctx.place_label(&for_end_label);
         }
         ast::Statement::Noop => {
             // Do nothing
