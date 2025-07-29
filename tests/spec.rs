@@ -20,8 +20,7 @@ use yare::parameterized;
     basic_array = { "basic_array" },
     basic_logic = { "basic_logic" },
     basic_if_simple = { "basic_if_simple" },
-    // FIXME: ELSEIF support not yet implemented
-    //basic_if = { "basic_if" },
+    basic_if = { "basic_if" },
 )]
 fn test_run_program(name: &str) {
     let input = read_to_string(format!("tests/test-resources/{}.bas", name)).unwrap();

@@ -270,30 +270,37 @@ impl TryFrom<Pair<'_, Rule>> for Statement {
                 let mut i = 0;
                 
                 // Parse IF branch: condition + statement_list
-                if i < elements.len() {
+                if i + 1 < elements.len() {
                     let condition = Expression::try_from(elements[i].clone())?;
                     i += 1;
-                    
-                    if i < elements.len() {
-                        let statements = parse_statement_list(elements[i].clone())?;
-                        i += 1;
-                        
-                        branches.push(IfBranch {
-                            condition: Some(condition),
-                            statements,
-                        });
-                    }
-                }
-                
-                // Parse remaining statement_lists (these are ELSEIF or ELSE branches)
-                // For now, treat all remaining statement_lists as ELSE branches
-                // TODO: This is a simplification - we need to update grammar to handle ELSEIF properly
-                while i < elements.len() {
                     let statements = parse_statement_list(elements[i].clone())?;
                     i += 1;
                     
                     branches.push(IfBranch {
-                        condition: None, // Treat as ELSE for now
+                        condition: Some(condition),
+                        statements,
+                    });
+                }
+                
+                // Parse ELSEIF branches: pairs of (condition, statement_list)
+                while i + 1 < elements.len() {
+                    let condition = Expression::try_from(elements[i].clone())?;
+                    i += 1;
+                    let statements = parse_statement_list(elements[i].clone())?;
+                    i += 1;
+                    
+                    branches.push(IfBranch {
+                        condition: Some(condition),
+                        statements,
+                    });
+                }
+                
+                // Parse ELSE branch: remaining statement_list (if any)
+                if i < elements.len() {
+                    let statements = parse_statement_list(elements[i].clone())?;
+                    
+                    branches.push(IfBranch {
+                        condition: None,
                         statements,
                     });
                 }
