@@ -29,7 +29,6 @@ impl Dimension {
 
 #[derive(Debug, Clone)]
 pub struct Array {
-    pub element_type: VariableType,
     pub dimensions: Vec<Dimension>,
     pub data: Vec<ir::Value>,
 }
@@ -40,7 +39,6 @@ impl Array {
         let default_value = Self::default_value_for_type(&element_type);
         
         Self {
-            element_type,
             dimensions,
             data: vec![default_value; total_size],
         }
@@ -129,6 +127,15 @@ impl ArrayStorage {
         element_type: VariableType,
         dimension_bounds: Vec<(isize, isize)>,
     ) -> Result<(), VMError> {
+
+        if name.is_empty() {
+            return Err(VMError::UndefinedVariable("Array name cannot be empty".to_string()));
+        }
+
+        if dimension_bounds.len() < MIN_NUM_DIMENSIONS || dimension_bounds.len() > MAX_NUM_DIMENSIONS {
+            return Err(VMError::WrongNumberOfDimensions);
+        }
+
         let dimensions = dimension_bounds
             .into_iter()
             .map(|(lower, upper)| {
@@ -139,12 +146,17 @@ impl ArrayStorage {
                     // Explicit bounds - use as specified
                     lower
                 };
-                Dimension {
+
+                if actual_lower < MIN_SUBSCRIPT || actual_lower > MAX_SUBSCRIPT || upper < MIN_SUBSCRIPT || upper > MAX_SUBSCRIPT {
+                    return Err(VMError::SubscriptOutOfRange);
+                }
+
+                Ok(Dimension {
                     lower_bound: actual_lower,
                     upper_bound: upper,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, VMError>>()?;
         
         let array = Array::new(element_type, dimensions);
         self.arrays.insert(name, array);
