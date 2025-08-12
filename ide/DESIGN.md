@@ -125,6 +125,186 @@ struct Dialog {
 - **Minimal dependencies**: Only `image` crate for PNG loading
 - **Authentic appearance**: Matches original DOS/VGA text mode exactly
 
+## UI Framework Architecture (v2)
+
+### Widget System Design
+
+The UI framework implements a hierarchical widget system with bidirectional event handling, designed for authentic QBasic IDE recreation.
+
+#### Core Widget Trait
+
+```rust
+trait Widget {
+    // Rendering (relative coordinates)
+    fn render(&self, screen: &mut Screen, x: usize, y: usize);
+    fn get_size(&self) -> (usize, usize);
+    
+    // Event handling (bidirectional)
+    fn handle_event(&mut self, event: Event) -> Option<Event>; // None = consumed, Some = bubble up
+    
+    // Focus management
+    fn can_focus(&self) -> bool;
+    fn set_focus(&mut self, focused: bool);
+    fn contains_point(&self, x: usize, y: usize) -> bool;
+    
+    // Child widget support
+    fn get_children(&mut self) -> Option<&mut Vec<Box<dyn Widget>>>;
+}
+```
+
+#### Event System
+
+**Event Types:**
+```rust
+#[derive(Debug, Clone)]
+enum Event {
+    // Input events (dispatched top-down)
+    KeyPress { key: char },
+    KeySpecial { key: SpecialKey }, // Tab, Arrow keys, etc.
+    MouseClick { x: usize, y: usize },
+    
+    // Widget events (bubble up)
+    ButtonClick { button_id: String },
+    DialogResult { result: DialogResult },
+    MenuSelect { menu_id: String, item_id: String },
+    
+    // System events
+    FocusChanged { widget_id: String },
+    WindowResize,
+}
+```
+
+### Bidirectional Event Flow
+
+#### 1. Event Dispatch (Top → Down)
+Events enter at the root widget and are routed to appropriate children:
+
+- **Keyboard Events**: Sent to currently focused widget
+- **Mouse Events**: Hit-tested by coordinates to find target widget  
+- **Global Events**: Broadcast to all widgets (like resize)
+
+```rust
+impl Container {
+    fn dispatch_event(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::KeyPress(_) | Event::KeySpecial(_) => {
+                // Route to focused child
+                if let Some(idx) = self.focused_child {
+                    self.children[idx].handle_event(event)
+                } else {
+                    Some(event) // No focus, bubble up
+                }
+            }
+            Event::MouseClick { x, y } => {
+                // Hit-test to find target child
+                for child in &mut self.children {
+                    if child.contains_point(x, y) {
+                        return child.handle_event(event);
+                    }
+                }
+                Some(event) // No hit, bubble up
+            }
+        }
+    }
+}
+```
+
+#### 2. Event Bubbling (Bottom → Up)
+Child widgets can:
+- **Consume events**: Return `None` to stop propagation
+- **Transform events**: Convert `ButtonClick` → `DialogResult`
+- **Pass through**: Return `Some(event)` unchanged
+
+### Widget Hierarchy Examples
+
+#### Basic Button
+```rust
+struct Button {
+    label: String,
+    id: String,
+    focused: bool,
+    size: (usize, usize),
+}
+
+impl Widget for Button {
+    fn handle_event(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::KeyPress { key: ' ' } | Event::KeyPress { key: '\r' } if self.focused => {
+                Some(Event::ButtonClick { button_id: self.id.clone() })
+            }
+            Event::MouseClick { x, y } if self.contains_point(x, y) => {
+                Some(Event::ButtonClick { button_id: self.id.clone() })
+            }
+            _ => Some(event) // Pass through unhandled events
+        }
+    }
+}
+```
+
+#### Dialog Container
+```rust
+struct Dialog {
+    children: Vec<Box<dyn Widget>>,
+    focused_child: Option<usize>,
+    title: String,
+}
+
+impl Widget for Dialog {
+    fn handle_event(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::ButtonClick { button_id } => {
+                // Transform button clicks into dialog results
+                match button_id.as_str() {
+                    "ok" => Some(Event::DialogResult { result: DialogResult::Ok }),
+                    "cancel" => Some(Event::DialogResult { result: DialogResult::Cancel }),
+                    _ => self.dispatch_to_children(event)
+                }
+            }
+            Event::KeySpecial { key: SpecialKey::Tab } => {
+                self.focus_next_child();
+                None // Consume tab navigation
+            }
+            _ => self.dispatch_to_children(event)
+        }
+    }
+}
+```
+
+### Focus Management
+
+**Focus Chain**: Widgets maintain focus order for Tab navigation
+**Focus Rules**:
+- Only one widget has focus at a time per container
+- Tab/Shift+Tab moves focus between focusable widgets
+- Mouse clicks change focus to clicked widget
+- Modal dialogs capture focus exclusively
+
+### Coordinate System
+
+**Relative Positioning**: All coordinates are relative to parent widget
+- Widget at (0,0) renders at its parent's origin
+- Simplifies widget composition and layout calculations
+- Makes widget reuse across different containers seamless
+
+### Widget Layout Strategy
+
+**Fixed Positioning** (initial implementation):
+- Widgets specify exact (x, y, width, height) within their parent
+- Simple and predictable for dialog-based UI
+- Matches QBasic's fixed-layout approach
+
+**Future**: Could evolve to automatic layout (flexbox-style) for more complex UIs
+
+### Implementation Phases
+
+1. **Phase 1**: Core trait + Button + Container
+2. **Phase 2**: Focus management + keyboard navigation  
+3. **Phase 3**: TextBox + Menu + Dialog compositions
+4. **Phase 4**: Modal dialog system + authentic QBasic widgets
+5. **Phase 5**: Full IDE layout (MenuBar + TextEditor + StatusBar)
+
+This design provides the flexibility for complex UI compositions while maintaining the authentic feel of the original QBasic IDE.
+
 ## Future Considerations
 
 - Sound effects (PC speaker beeps) can be added easily with winit

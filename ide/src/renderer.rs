@@ -49,7 +49,7 @@ impl BitmapFont {
         let img = ImageReader::new(std::io::Cursor::new(font_data))
             .with_guessed_format()?
             .decode()?;
-        
+
         let rgba_img = img.to_rgba8();
         Ok(BitmapFont {
             image_data: rgba_img.into_raw(),
@@ -62,14 +62,14 @@ impl BitmapFont {
         // 16x16 grid layout
         let char_x = (char_code % 16) as u32;
         let char_y = (char_code / 16) as u32;
-        
+
         let mut char_data = Vec::with_capacity(CHAR_WIDTH * CHAR_HEIGHT);
-        
+
         for y in 0..CHAR_HEIGHT {
             for x in 0..CHAR_WIDTH {
                 let sprite_x = char_x * CHAR_WIDTH as u32 + x as u32;
                 let sprite_y = char_y * CHAR_HEIGHT as u32 + y as u32;
-                
+
                 if sprite_x < self.width && sprite_y < self.height {
                     let pixel_idx = ((sprite_y * self.width + sprite_x) * 4) as usize;
                     // Use alpha channel for bitmap (white = foreground, transparent = background)
@@ -84,7 +84,7 @@ impl BitmapFont {
                 }
             }
         }
-        
+
         char_data
     }
 }
@@ -97,8 +97,11 @@ pub struct Renderer {
 impl Renderer {
     pub fn new() -> Result<Self> {
         let font = BitmapFont::new(FONT_DATA)?;
-        println!("Successfully loaded bitmap font: {}x{}", font.width, font.height);
-        
+        println!(
+            "Successfully loaded bitmap font: {}x{}",
+            font.width, font.height
+        );
+
         Ok(Renderer {
             font,
             start_time: std::time::Instant::now(),
@@ -127,13 +130,13 @@ impl Renderer {
         if x >= WINDOW_WIDTH as usize || y >= WINDOW_HEIGHT as usize {
             return false;
         }
-        
+
         let frame_idx = (y * WINDOW_WIDTH as usize + x) * 4;
         if frame_idx + 3 < frame.len() {
-            frame[frame_idx] = color[0];     // R
+            frame[frame_idx] = color[0]; // R
             frame[frame_idx + 1] = color[1]; // G
             frame[frame_idx + 2] = color[2]; // B
-            frame[frame_idx + 3] = 255;      // A
+            frame[frame_idx + 3] = 255; // A
             true
         } else {
             false
@@ -141,7 +144,14 @@ impl Renderer {
     }
 
     // Helper function to fill a rectangle with solid color
-    fn fill_rect(frame: &mut [u8], x: usize, y: usize, width: usize, height: usize, color: [u8; 3]) {
+    fn fill_rect(
+        frame: &mut [u8],
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        color: [u8; 3],
+    ) {
         for dy in 0..height {
             for dx in 0..width {
                 Self::set_pixel(frame, x + dx, y + dy, color);
@@ -155,14 +165,22 @@ impl Renderer {
     }
 
     // Helper function to render a character cell with bitmap
-    fn render_char_cell(&self, frame: &mut [u8], x: usize, y: usize, char: u8, fg_color: [u8; 3], bg_color: [u8; 3]) {
+    fn render_char_cell(
+        &self,
+        frame: &mut [u8],
+        x: usize,
+        y: usize,
+        char: u8,
+        fg_color: [u8; 3],
+        bg_color: [u8; 3],
+    ) {
         let char_pixels = self.font.get_char_pixels(char);
-        
+
         for dy in 0..CHAR_HEIGHT {
             for dx in 0..CHAR_WIDTH {
                 let char_pixel_idx = dy * CHAR_WIDTH + dx;
                 let is_foreground = if char_pixel_idx < char_pixels.len() {
-                    char_pixels[char_pixel_idx] > 128  // Simple threshold
+                    char_pixels[char_pixel_idx] > 128 // Simple threshold
                 } else {
                     false
                 };
@@ -173,13 +191,20 @@ impl Renderer {
         }
     }
 
-    fn render_cell(&self, frame: &mut [u8], col: usize, row: usize, cell: &Cell, elapsed: Duration) {
+    fn render_cell(
+        &self,
+        frame: &mut [u8],
+        col: usize,
+        row: usize,
+        cell: &Cell,
+        elapsed: Duration,
+    ) {
         let x = col * CHAR_WIDTH;
         let y = row * CHAR_HEIGHT;
 
         // Check if cell has blink attribute
         let is_blinking = cell.attributes.contains(&CellAttribute::Blink);
-        
+
         // Calculate blink state
         let should_show_fg = if is_blinking {
             (elapsed.as_millis() / BLINK_CYCLE_MS) % 2 == 0
