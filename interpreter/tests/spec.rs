@@ -1,4 +1,4 @@
-use basically::BasicallyBuilder;
+use basically_interpreter::BasicallyBuilder;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fs::read_to_string;

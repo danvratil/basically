@@ -1,0 +1,17 @@
+[package]
+name = "basically-ide"
+version = "0.1.0"
+edition = "2024"
+authors = [
+    "Daniel Vrátil <me@dvratil.cz>"
+]
+
+[dependencies]
+anyhow = "1.0"
+ratatui = "0.29"
+winit = "0.30"
+pixels = "0.15"
+
+
+[dev-dependencies]
+assert2 = "0.3"

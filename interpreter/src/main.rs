@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-use basically::ast::Program;
-use basically::parser::{BasicParser, Rule};
-use basically::vm::VM;
-use basically::{default_input_handler, default_output_handler, ir};
+use basically_interpreter::ast::Program;
+use basically_interpreter::parser::{BasicParser, Rule};
+use basically_interpreter::vm::VM;
+use basically_interpreter::{default_input_handler, default_output_handler, ir};
 
 use pest::Parser;
 use pest::iterators::Pair;
