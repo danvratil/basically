@@ -12,25 +12,25 @@ pub mod widget;
 // Re-export commonly used types
 pub use button::Button;
 pub use container::{ChildWidget, Panel};
-pub use event::{DialogResult, Event, SpecialKey};
+pub use event::{DialogId, DialogResult, Event, MainId, MenuId, SpecialKey, WidgetIdType};
 pub use label::Label;
 pub use widget::{Container, Widget};
 
 // Re-export Color from screen module for convenience
 pub use crate::screen::Color;
 
-/// Convenience function to create a new UI panel
-pub fn panel(width: usize, height: usize) -> Panel {
+/// Convenience function to create a new UI panel with MainId type
+pub fn panel(width: usize, height: usize) -> Panel<MainId> {
     Panel::new(width, height)
 }
 
-/// Convenience function to create a new button
-pub fn button(id: impl Into<String>, label: impl Into<String>) -> Button {
+/// Convenience function to create a new button with MainId type
+pub fn button(id: MainId, label: impl Into<String>) -> Button<MainId> {
     Button::new(id, label)
 }
 
-/// Convenience function to create a new label
-pub fn label(text: impl Into<String>, fg_color: Color, bg_color: Color) -> Label {
+/// Convenience function to create a new label with MainId type
+pub fn label(text: impl Into<String>, fg_color: Color, bg_color: Color) -> Label<MainId> {
     Label::new(text, fg_color, bg_color)
 }
 

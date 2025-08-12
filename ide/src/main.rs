@@ -14,14 +14,14 @@ use winit::{
 
 use renderer::{Renderer, get_window_size};
 use screen::Screen;
-use ui::{Color, Event, Widget, button, label, panel};
+use ui::{Color, Event, Widget, button, label, panel, MainId};
 
 struct App {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
     renderer: Option<Renderer>,
     screen: Screen,
-    ui: ui::Panel,
+    ui: ui::Panel<MainId>,
 }
 
 impl App {
@@ -44,10 +44,10 @@ impl App {
                 15,
                 4,
             )
-            .add_child(Box::new(button("new", "New")), 10, 8)
-            .add_child(Box::new(button("open", "Open")), 20, 8)
-            .add_child(Box::new(button("save", "Save")), 30, 8)
-            .add_child(Box::new(button("exit", "Exit")), 40, 8)
+            .add_child(Box::new(button(MainId::NewButton, "New")), 10, 8)
+            .add_child(Box::new(button(MainId::OpenButton, "Open")), 20, 8)
+            .add_child(Box::new(button(MainId::SaveButton, "Save")), 30, 8)
+            .add_child(Box::new(button(MainId::ExitButton, "Exit")), 40, 8)
             .add_child(Box::new(label("Status: Ready", Color::LightCyan, Color::Black)), 2, 23);
 
         // Initialize focus
@@ -73,19 +73,19 @@ impl App {
         Ok(())
     }
 
-    fn handle_ui_event(&mut self, event: Event) {
+    fn handle_ui_event(&mut self, event: Event<MainId>) {
         match event {
             Event::ButtonClick { button_id } => {
-                println!("Button clicked: {}", button_id);
-                match button_id.as_str() {
-                    "exit" => {
+                println!("Button clicked: {:?}", button_id);
+                match button_id {
+                    MainId::ExitButton => {
                         // In a real app, this would trigger app shutdown
                         println!("Exit button clicked - in real app this would quit");
                     }
-                    "new" => println!("New file requested"),
-                    "open" => println!("Open file requested"),
-                    "save" => println!("Save file requested"),
-                    _ => println!("Unknown button: {}", button_id),
+                    MainId::NewButton => println!("New file requested"),
+                    MainId::OpenButton => println!("Open file requested"),
+                    MainId::SaveButton => println!("Save file requested"),
+                    _ => println!("Unknown button: {:?}", button_id),
                 }
             }
             _ => {

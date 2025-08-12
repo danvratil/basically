@@ -1,11 +1,11 @@
 use crate::screen::{CellAttribute, Color, Screen};
-use crate::ui::event::{Event, SpecialKey};
+use crate::ui::event::{Event, SpecialKey, WidgetIdType};
 use crate::ui::widget::Widget;
 
 /// A clickable button widget with text label
 #[derive(Debug, Clone)]
-pub struct Button {
-    id: String,
+pub struct Button<Id: WidgetIdType> {
+    id: Id,
     label: String,
     size: (usize, usize),
     focused: bool,
@@ -16,14 +16,14 @@ pub struct Button {
     focus_bg_color: Color,
 }
 
-impl Button {
+impl<Id: WidgetIdType> Button<Id> {
     /// Create a new button with the given id and label
-    pub fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
+    pub fn new(id: Id, label: impl Into<String>) -> Self {
         let label = label.into();
         let width = label.len() + 4; // Add padding for [ label ]
 
         Self {
-            id: id.into(),
+            id,
             label,
             size: (width, 1),
             focused: false,
@@ -98,7 +98,7 @@ impl Button {
     }
 }
 
-impl Widget for Button {
+impl<Id: WidgetIdType> Widget<Id> for Button<Id> {
     fn render(&self, screen: &mut Screen, x: usize, y: usize) {
         self.render_button_text(screen, x, y);
 
@@ -128,7 +128,7 @@ impl Widget for Button {
         self.size
     }
 
-    fn handle_event(&mut self, event: Event) -> Option<Event> {
+    fn handle_event(&mut self, event: Event<Id>) -> Option<Event<Id>> {
         if !self.enabled {
             return Some(event);
         }
@@ -164,7 +164,7 @@ impl Widget for Button {
         self.focused = focused;
     }
 
-    fn get_id(&self) -> Option<&str> {
+    fn get_id(&self) -> Option<&Id> {
         Some(&self.id)
     }
 }

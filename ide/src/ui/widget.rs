@@ -1,8 +1,9 @@
 use crate::screen::Screen;
-use crate::ui::event::Event;
+use crate::ui::event::{Event, WidgetIdType};
 
 /// Core trait that all UI widgets must implement
-pub trait Widget {
+/// Generic over the ID type for type-safe widget identification
+pub trait Widget<Id: WidgetIdType> {
     /// Render the widget at the given coordinates relative to its parent
     /// (x, y) represents the top-left corner where this widget should draw itself
     fn render(&self, screen: &mut Screen, x: usize, y: usize);
@@ -13,7 +14,7 @@ pub trait Widget {
     /// Handle an incoming event
     /// Returns None if the event was consumed, Some(event) to bubble up
     /// Default implementation just returns the event unchanged, i.e. no event handling.
-    fn handle_event(&mut self, event: Event) -> Option<Event> {
+    fn handle_event(&mut self, event: Event<Id>) -> Option<Event<Id>> {
         Some(event)
     }
 
@@ -36,20 +37,20 @@ pub trait Widget {
 
     /// Get mutable access to child widgets (if this widget is a container)
     /// Returns None for leaf widgets
-    fn get_children(&mut self) -> Option<&mut Vec<Box<dyn Widget>>> {
+    fn get_children(&mut self) -> Option<&mut Vec<Box<dyn Widget<Id>>>> {
         None
     }
 
     /// Get the widget's unique identifier (optional, used for debugging and events)
-    fn get_id(&self) -> Option<&str> {
+    fn get_id(&self) -> Option<&Id> {
         None
     }
 }
 
 /// Helper trait for widgets that contain other widgets
-pub trait Container: Widget {
+pub trait Container<Id: WidgetIdType>: Widget<Id> {
     /// Dispatch an event to the appropriate child widget
-    fn dispatch_to_children(&mut self, event: Event) -> Option<Event>;
+    fn dispatch_to_children(&mut self, event: Event<Id>) -> Option<Event<Id>>;
 
     /// Get the index of the currently focused child
     fn get_focused_child(&self) -> Option<usize>;

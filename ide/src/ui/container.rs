@@ -1,24 +1,24 @@
 use crate::screen::{Color, Screen};
-use crate::ui::event::{Event, SpecialKey};
+use crate::ui::event::{Event, SpecialKey, WidgetIdType};
 use crate::ui::widget::{Container, Widget};
 
 /// A widget that contains and manages other widgets
 /// Handles layout, focus management, and event dispatch
 #[derive(Debug)]
-pub struct Panel {
-    children: Vec<ChildWidget>,
+pub struct Panel<Id: WidgetIdType> {
+    pub children: Vec<ChildWidget<Id>>,
     focused_child: Option<usize>,
     size: (usize, usize),
     bg_color: Color,
 }
 
 /// Represents a child widget with its position within the container
-pub struct ChildWidget {
-    widget: Box<dyn Widget>,
-    position: (usize, usize), // (x, y) relative to container
+pub struct ChildWidget<Id: WidgetIdType> {
+    pub widget: Box<dyn Widget<Id>>,
+    pub position: (usize, usize), // (x, y) relative to container
 }
 
-impl std::fmt::Debug for ChildWidget {
+impl<Id: WidgetIdType> std::fmt::Debug for ChildWidget<Id> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ChildWidget")
             .field("widget_id", &self.widget.get_id())
@@ -27,7 +27,7 @@ impl std::fmt::Debug for ChildWidget {
     }
 }
 
-impl Panel {
+impl<Id: WidgetIdType> Panel<Id> {
     /// Create a new empty container with the specified size
     pub fn new(width: usize, height: usize) -> Self {
         Self {
@@ -45,7 +45,7 @@ impl Panel {
     }
 
     /// Add a child widget at the specified position
-    pub fn add_child(mut self, widget: Box<dyn Widget>, x: usize, y: usize) -> Self {
+    pub fn add_child(mut self, widget: Box<dyn Widget<Id>>, x: usize, y: usize) -> Self {
         self.children.push(ChildWidget {
             widget,
             position: (x, y),
@@ -54,7 +54,7 @@ impl Panel {
     }
 
     /// Add a child widget and return a mutable reference to self for chaining
-    pub fn add_child_mut(&mut self, widget: Box<dyn Widget>, x: usize, y: usize) -> &mut Self {
+    pub fn add_child_mut(&mut self, widget: Box<dyn Widget<Id>>, x: usize, y: usize) -> &mut Self {
         self.children.push(ChildWidget {
             widget,
             position: (x, y),
@@ -85,7 +85,7 @@ impl Panel {
     }
 
     /// Handle tab navigation - common logic for containers
-    fn handle_tab_navigation(&mut self, shift_pressed: bool) -> Option<Event> {
+    fn handle_tab_navigation(&mut self, shift_pressed: bool) -> Option<Event<Id>> {
         if shift_pressed {
             self.focus_previous_child();
         } else {
@@ -104,7 +104,7 @@ impl Panel {
     }
 }
 
-impl Widget for Panel {
+impl<Id: WidgetIdType> Widget<Id> for Panel<Id> {
     fn render(&self, screen: &mut Screen, x: usize, y: usize) {
         // First, clear the container's background
         let (width, height) = self.size;
@@ -124,7 +124,7 @@ impl Widget for Panel {
         self.size
     }
 
-    fn handle_event(&mut self, event: Event) -> Option<Event> {
+    fn handle_event(&mut self, event: Event<Id>) -> Option<Event<Id>> {
         match &event {
             // Handle tab navigation
             Event::KeySpecial {
@@ -181,15 +181,15 @@ impl Widget for Panel {
         }
     }
 
-    fn get_children(&mut self) -> Option<&mut Vec<Box<dyn Widget>>> {
+    fn get_children(&mut self) -> Option<&mut Vec<Box<dyn Widget<Id>>>> {
         // This is a bit tricky because our children are wrapped in ChildWidget
         // For now, return None - containers that need this can implement a custom method
         None
     }
 }
 
-impl Container for Panel {
-    fn dispatch_to_children(&mut self, event: Event) -> Option<Event> {
+impl<Id: WidgetIdType> Container<Id> for Panel<Id> {
+    fn dispatch_to_children(&mut self, event: Event<Id>) -> Option<Event<Id>> {
         // Try sending the event to all children until one consumes it
         for child in &mut self.children {
             if let None = child.widget.handle_event(event.clone()) {
