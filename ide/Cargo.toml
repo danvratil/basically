@@ -8,9 +8,9 @@ authors = [
 
 [dependencies]
 anyhow = "1.0"
-ratatui = "0.29"
 winit = "0.30"
 pixels = "0.15"
+image = "0.25"
 
 
 [dev-dependencies]
