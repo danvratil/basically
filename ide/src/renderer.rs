@@ -18,25 +18,7 @@ const BLINK_CYCLE_MS: u128 = 500;
 // Font sprite sheet - 16x16 grid of characters
 const FONT_DATA: &[u8] = include_bytes!("../assets/IBM_VGA_9x16.png");
 
-// DOS color palette (16 colors)
-const DOS_PALETTE: [[u8; 3]; 16] = [
-    [0, 0, 0],       // Black
-    [0, 0, 170],     // Blue
-    [0, 170, 0],     // Green
-    [0, 170, 170],   // Cyan
-    [170, 0, 0],     // Red
-    [170, 0, 170],   // Magenta
-    [170, 85, 0],    // Brown
-    [170, 170, 170], // Light Gray
-    [85, 85, 85],    // Dark Gray
-    [85, 85, 255],   // Light Blue
-    [85, 255, 85],   // Light Green
-    [85, 255, 255],  // Light Cyan
-    [255, 85, 85],   // Light Red
-    [255, 85, 255],  // Light Magenta
-    [255, 255, 85],  // Yellow
-    [255, 255, 255], // White
-];
+// DOS color palette is now handled by the Color enum in screen.rs
 
 struct BitmapFont {
     image_data: Vec<u8>,
@@ -212,7 +194,7 @@ impl Renderer {
             true
         };
 
-        let bg_color = DOS_PALETTE[cell.bg_color as usize & 15];
+        let bg_color = cell.bg_color.to_rgb();
 
         // Optimization: if blinking text is "off", just fill with background color
         if is_blinking && !should_show_fg {
@@ -221,7 +203,7 @@ impl Renderer {
         }
 
         // Normal rendering path for visible text
-        let fg_color = DOS_PALETTE[cell.fg_color as usize & 15];
+        let fg_color = cell.fg_color.to_rgb();
         self.render_char_cell(frame, x, y, cell.char, fg_color, bg_color);
     }
 }

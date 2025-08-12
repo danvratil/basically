@@ -13,8 +13,8 @@ use winit::{
 };
 
 use renderer::{Renderer, get_window_size};
-use screen::{CellAttribute, Screen};
-use ui::{Event, Widget, button, label, panel};
+use screen::Screen;
+use ui::{Color, Event, Widget, button, label, panel};
 
 struct App {
     window: Option<Arc<Window>>,
@@ -31,15 +31,15 @@ impl App {
         // Create a simple UI to demonstrate the widget system
         let mut ui = panel(80, 25)
             .add_child(
-                Box::new(label("QBasic IDE - Widget System Demo", 14, 1)),
+                Box::new(label("QBasic IDE - Widget System Demo", Color::Yellow, Color::Blue)),
                 20,
                 2,
             )
             .add_child(
                 Box::new(label(
                     "Use Tab to navigate, Space to activate buttons",
-                    15,
-                    0,
+                    Color::White,
+                    Color::Black,
                 )),
                 15,
                 4,
@@ -48,7 +48,7 @@ impl App {
             .add_child(Box::new(button("open", "Open")), 20, 8)
             .add_child(Box::new(button("save", "Save")), 30, 8)
             .add_child(Box::new(button("exit", "Exit")), 40, 8)
-            .add_child(Box::new(label("Status: Ready", 11, 0)), 2, 23);
+            .add_child(Box::new(label("Status: Ready", Color::LightCyan, Color::Black)), 2, 23);
 
         // Initialize focus
         ui.set_focus(true);

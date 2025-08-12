@@ -1,17 +1,17 @@
-use crate::ui::Widget;
-use crate::Screen;
+use crate::screen::{Color, Screen};
+use crate::ui::widget::Widget;
 
 /// A simple widget that just displays text (useful for labels, status bars, etc.)
 #[derive(Debug, Clone)]
 pub struct Label {
     text: String,
-    fg_color: u8,
-    bg_color: u8,
+    fg_color: Color,
+    bg_color: Color,
     size: (usize, usize),
 }
 
 impl Label {
-    pub fn new(text: impl Into<String>, fg_color: u8, bg_color: u8) -> Self {
+    pub fn new(text: impl Into<String>, fg_color: Color, bg_color: Color) -> Self {
         let text = text.into();
         let width = text.len();
         Self {

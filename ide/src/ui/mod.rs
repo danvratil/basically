@@ -16,6 +16,9 @@ pub use event::{DialogResult, Event, SpecialKey};
 pub use label::Label;
 pub use widget::{Container, Widget};
 
+// Re-export Color from screen module for convenience
+pub use crate::screen::Color;
+
 /// Convenience function to create a new UI panel
 pub fn panel(width: usize, height: usize) -> Panel {
     Panel::new(width, height)
@@ -27,7 +30,7 @@ pub fn button(id: impl Into<String>, label: impl Into<String>) -> Button {
 }
 
 /// Convenience function to create a new label
-pub fn label(text: impl Into<String>, fg_color: u8, bg_color: u8) -> Label {
+pub fn label(text: impl Into<String>, fg_color: Color, bg_color: Color) -> Label {
     Label::new(text, fg_color, bg_color)
 }
 
@@ -39,14 +42,14 @@ mod tests {
     fn test_convenience_functions() {
         let _panel = panel(80, 25);
         let _button = button("test", "Click Me");
-        let _label = label("Hello", 15, 0);
+        let _label = label("Hello", Color::White, Color::Black);
     }
 
     #[test]
     fn test_widget_composition() {
         // Test creating a simple UI with a panel containing buttons
         let ui = panel(40, 10)
-            .add_child(Box::new(label("Welcome to QBasic IDE", 14, 1)), 2, 1)
+            .add_child(Box::new(label("Welcome to QBasic IDE", Color::Yellow, Color::Blue)), 2, 1)
             .add_child(Box::new(button("ok", "OK")), 10, 8)
             .add_child(Box::new(button("cancel", "Cancel")), 20, 8);
 

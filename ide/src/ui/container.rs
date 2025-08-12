@@ -1,4 +1,4 @@
-use crate::screen::Screen;
+use crate::screen::{Color, Screen};
 use crate::ui::event::{Event, SpecialKey};
 use crate::ui::widget::{Container, Widget};
 
@@ -9,7 +9,7 @@ pub struct Panel {
     children: Vec<ChildWidget>,
     focused_child: Option<usize>,
     size: (usize, usize),
-    bg_color: u8,
+    bg_color: Color,
 }
 
 /// Represents a child widget with its position within the container
@@ -34,12 +34,12 @@ impl Panel {
             children: Vec::new(),
             focused_child: None,
             size: (width, height),
-            bg_color: 0, // Black background by default
+            bg_color: Color::Black,
         }
     }
 
     /// Set the background color for the container
-    pub fn with_bg_color(mut self, bg_color: u8) -> Self {
+    pub fn with_bg_color(mut self, bg_color: Color) -> Self {
         self.bg_color = bg_color;
         self
     }
@@ -110,7 +110,7 @@ impl Widget for Panel {
         let (width, height) = self.size;
         for row in 0..height {
             let empty_line = " ".repeat(width);
-            screen.write_string(x, y + row, &empty_line, 15, self.bg_color);
+            screen.write_string(x, y + row, &empty_line, Color::White, self.bg_color);
         }
 
         // Then render all child widgets at their positions

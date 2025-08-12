@@ -1,4 +1,4 @@
-use crate::screen::{CellAttribute, Screen};
+use crate::screen::{CellAttribute, Color, Screen};
 use crate::ui::event::{Event, SpecialKey};
 use crate::ui::widget::Widget;
 
@@ -10,10 +10,10 @@ pub struct Button {
     size: (usize, usize),
     focused: bool,
     enabled: bool,
-    fg_color: u8,
-    bg_color: u8,
-    focus_fg_color: u8,
-    focus_bg_color: u8,
+    fg_color: Color,
+    bg_color: Color,
+    focus_fg_color: Color,
+    focus_bg_color: Color,
 }
 
 impl Button {
@@ -28,10 +28,10 @@ impl Button {
             size: (width, 1),
             focused: false,
             enabled: true,
-            fg_color: 15,      // White
-            bg_color: 1,       // Blue
-            focus_fg_color: 0, // Black
-            focus_bg_color: 7, // Light gray
+            fg_color: Color::White,
+            bg_color: Color::Blue,
+            focus_fg_color: Color::Black,
+            focus_bg_color: Color::LightGray,
         }
     }
 
@@ -42,7 +42,7 @@ impl Button {
     }
 
     /// Set custom colors
-    pub fn with_colors(mut self, fg: u8, bg: u8, focus_fg: u8, focus_bg: u8) -> Self {
+    pub fn with_colors(mut self, fg: Color, bg: Color, focus_fg: Color, focus_bg: Color) -> Self {
         self.fg_color = fg;
         self.bg_color = bg;
         self.focus_fg_color = focus_fg;
