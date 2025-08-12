@@ -22,6 +22,7 @@ struct App {
     renderer: Option<Renderer>,
     screen: Screen,
     ui: ui::Panel<MainId>,
+    modifiers: winit::keyboard::ModifiersState,
 }
 
 impl App {
@@ -59,6 +60,7 @@ impl App {
             renderer: None,
             screen,
             ui,
+            modifiers: winit::keyboard::ModifiersState::default(),
         }
     }
 
@@ -161,6 +163,9 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
+            WindowEvent::ModifiersChanged(new_modifiers) => {
+                self.modifiers = new_modifiers.state();
+            }
             WindowEvent::Resized(size) => {
                 if let Some(pixels) = &mut self.pixels {
                     if let Err(e) = pixels.resize_surface(size.width, size.height) {
@@ -184,9 +189,18 @@ impl ApplicationHandler for App {
                             }
                         }
                         winit::keyboard::Key::Named(named_key) => match named_key {
-                            winit::keyboard::NamedKey::Tab => Some(Event::KeySpecial {
-                                key: ui::SpecialKey::Tab,
-                            }),
+                            winit::keyboard::NamedKey::Tab => {
+                                // Check if Shift is held down for Shift+Tab
+                                if self.modifiers.shift_key() {
+                                    Some(Event::KeySpecial {
+                                        key: ui::SpecialKey::ShiftTab,
+                                    })
+                                } else {
+                                    Some(Event::KeySpecial {
+                                        key: ui::SpecialKey::Tab,
+                                    })
+                                }
+                            },
                             winit::keyboard::NamedKey::Enter => Some(Event::KeySpecial {
                                 key: ui::SpecialKey::Enter,
                             }),
